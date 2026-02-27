@@ -1,0 +1,40 @@
+{
+  "name": "@braudypedrosa/bp-listings",
+  "version": "1.0.0",
+  "description": "Airbnb-style listings + map widget powered by vanilla JavaScript and Leaflet",
+  "main": "./listings-map.js",
+  "exports": {
+    ".": "./listings-map.js",
+    "./styles": "./listings-map.css"
+  },
+  "files": [
+    "listings-map.js",
+    "listings-map.css",
+    "README.md",
+    "LICENSE",
+    "docs.html",
+    "index.html"
+  ],
+  "keywords": [
+    "listings",
+    "leaflet",
+    "map",
+    "vacation-rental",
+    "widget"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/braudypedrosa/bp-listings.git"
+  },
+  "bugs": {
+    "url": "https://github.com/braudypedrosa/bp-listings/issues"
+  },
+  "homepage": "https://github.com/braudypedrosa/bp-listings#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "release:npm": "npm publish"
+  }
+}

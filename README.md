@@ -25,6 +25,19 @@ It is framework-agnostic, distributed as standalone JS/CSS, and uses Leaflet for
 
 ## Installation
 
+### npm
+
+```bash
+npm install @braudypedrosa/bp-listings
+```
+
+```js
+import '@braudypedrosa/bp-listings';
+import '@braudypedrosa/bp-listings/styles';
+```
+
+### Browser
+
 ```html
 <link rel="stylesheet" href="./listings-map.css" />
 <script src="./listings-map.js"></script>
@@ -129,3 +142,11 @@ The included stylesheet is standalone and does not require a CSS framework.
 ## License
 
 MIT
+
+## Maintainer Workflow
+
+Edit source files in this repository:
+- `listings-map.js`
+- `listings-map.css`
+
+Then release updates by bumping `package.json` version, tagging (`vX.Y.Z`), and publishing.
