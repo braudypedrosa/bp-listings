@@ -1,0 +1,891 @@
+/* ============================================
+   ListingsMap - Airbnb-style Listings + Map Widget
+   Standalone CSS - No dependencies required
+   ============================================ */
+
+/* Reset & Base */
+.lm-widget *,
+.lm-widget *::before,
+.lm-widget *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.lm-widget {
+  --lm-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --lm-color-text: #222222;
+  --lm-color-text-secondary: #717171;
+  --lm-color-border: #dddddd;
+  --lm-color-bg: #ffffff;
+  --lm-color-heart: #ff385c;
+  --lm-color-badge-bg: #ffffff;
+  --lm-color-badge-text: #222222;
+  --lm-color-star: #222222;
+  --lm-color-superhost-bg: #222222;
+  --lm-color-superhost-text: #ffffff;
+  --lm-color-price-marker-bg: #ffffff;
+  --lm-color-price-marker-text: #222222;
+  --lm-color-price-marker-hover-bg: #222222;
+  --lm-color-price-marker-hover-text: #ffffff;
+  --lm-color-price-marker-active-bg: #222222;
+  --lm-color-price-marker-active-text: #ffffff;
+  --lm-radius: 12px;
+  --lm-radius-sm: 8px;
+
+  font-family: var(--lm-font);
+  color: var(--lm-color-text);
+  background: var(--lm-color-bg);
+  width: 100%;
+  height: 100%;
+  min-height: 600px; /* Ensure map has space when parent height is not set */
+  display: flex;
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ---- Layout ---- */
+.lm-listings-panel {
+  flex: 0 0 58%;
+  max-width: 58%;
+  min-width: 0;
+  height: 100%;
+  overflow-y: auto;
+  padding: 24px;
+  scrollbar-width: none;           /* Firefox */
+  -ms-overflow-style: none;        /* IE / Edge */
+  position: relative;
+  z-index: 10;                    /* Above map so calendar/datepicker popup is not overlapped */
+}
+
+.lm-listings-panel::-webkit-scrollbar {
+  display: none;                   /* Chrome, Safari, Opera */
+}
+
+.lm-listings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  align-items: start;
+  min-width: 0;
+}
+
+/* Prevent grid items from overflowing their cell (fixes overlap) */
+.lm-listings-grid > * {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.lm-map-panel {
+  flex: 1;
+  height: 100%;
+  position: relative;
+  z-index: 1;                      /* Below listings panel so calendar popup stays on top */
+  border-left: 1px solid var(--lm-color-border);
+}
+
+.lm-map-panel .lm-map-container {
+  width: 100%;
+  height: 100%;
+  min-height: 400px; /* Leaflet needs non-zero height; fallback if flex height fails */
+}
+
+/* ---- Search Slot ---- */
+.lm-search-slot {
+  margin-bottom: 16px;
+}
+
+/* ---- Toolbar ---- */
+.lm-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+
+.lm-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lm-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Sort Dropdown */
+.lm-sort-wrapper {
+  position: relative;
+}
+
+.lm-sort-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--lm-color-bg);
+  border: 1px solid var(--lm-color-border);
+  border-radius: 24px;
+  padding: 8px 36px 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: var(--lm-font);
+  color: var(--lm-color-text);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='none' stroke='%23222' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='3 6 8 11 13 6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 14px;
+}
+
+.lm-sort-select:hover {
+  border-color: #222222;
+}
+
+.lm-sort-select:focus {
+  border-color: #222222;
+  box-shadow: 0 0 0 2px rgba(34, 34, 34, 0.1);
+}
+
+/* Map Toggle Button */
+.lm-toggle-map-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  appearance: none;
+  background: var(--lm-color-bg);
+  border: 1px solid var(--lm-color-border);
+  border-radius: 24px;
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: var(--lm-font);
+  color: var(--lm-color-text);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  white-space: nowrap;
+}
+
+.lm-toggle-map-btn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.lm-toggle-map-btn:hover {
+  border-color: #222222;
+}
+
+.lm-toggle-map-btn:focus-visible {
+  border-color: #222222;
+  box-shadow: 0 0 0 2px rgba(34, 34, 34, 0.1);
+}
+
+.lm-widget.lm-map-hidden .lm-toggle-map-btn {
+  background: var(--lm-color-text);
+  color: var(--lm-color-bg);
+  border-color: var(--lm-color-text);
+}
+
+.lm-widget.lm-map-hidden .lm-toggle-map-btn svg {
+  stroke: var(--lm-color-bg);
+}
+
+/* ---- Map Hidden State ---- */
+.lm-widget.lm-map-hidden .lm-map-panel {
+  display: none;
+}
+
+.lm-widget.lm-map-hidden .lm-listings-panel {
+  flex: 1 1 0%;
+  max-width: 100%;
+}
+
+.lm-widget.lm-map-hidden .lm-listings-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* ---- Pagination ---- */
+.lm-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 24px 0 8px;
+}
+
+.lm-pagination:empty {
+  display: none;
+}
+
+.lm-pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: var(--lm-font);
+  color: var(--lm-color-text);
+  cursor: pointer;
+  transition: background 0.15s ease;
+  padding: 0 4px;
+}
+
+.lm-pagination-btn:hover:not([disabled]):not(.lm-pagination-btn-active) {
+  background: #f0f0f0;
+}
+
+.lm-pagination-btn-active {
+  background: var(--lm-color-text);
+  color: var(--lm-color-bg);
+}
+
+.lm-pagination-btn-active:hover {
+  background: var(--lm-color-text);
+  color: var(--lm-color-bg);
+}
+
+.lm-pagination-btn[disabled] {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.lm-pagination-btn-arrow {
+  border-radius: 50%;
+}
+
+.lm-pagination-btn-arrow svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lm-pagination-ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  font-size: 14px;
+  color: var(--lm-color-text-secondary);
+  user-select: none;
+}
+
+/* ---- Listing Card ---- */
+.lm-card {
+  cursor: pointer;
+  position: relative;
+  transition: opacity 0.15s ease;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.lm-card:hover {
+  opacity: 0.92;
+}
+
+.lm-card-active {
+  opacity: 1 !important;
+}
+
+/* ---- Image Carousel (square, full width of card, no side gaps) ---- */
+.lm-carousel {
+  position: relative;
+  width: 100%;
+  border-radius: var(--lm-radius);
+  overflow: hidden;
+  background: #f0f0f0;
+  aspect-ratio: 1 / 1;
+}
+
+/* Fallback when aspect-ratio not supported: square via padding-bottom */
+@supports not (aspect-ratio: 1 / 1) {
+  .lm-carousel {
+    height: 0;
+    padding-bottom: 100%;
+  }
+}
+
+.lm-carousel-track {
+  display: flex;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+  will-change: transform;
+}
+
+.lm-carousel-slide {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.lm-carousel-slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+.lm-carousel-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.lm-carousel:hover .lm-carousel-btn {
+  opacity: 1;
+}
+
+.lm-carousel-btn:hover {
+  background: #ffffff;
+  transform: translateY(-50%) scale(1.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.lm-carousel-btn:active {
+  transform: translateY(-50%) scale(0.97);
+}
+
+.lm-carousel-btn-prev {
+  left: 8px;
+}
+
+.lm-carousel-btn-next {
+  right: 8px;
+}
+
+.lm-carousel-btn svg {
+  width: 12px;
+  height: 12px;
+  stroke: #222222;
+  stroke-width: 3;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lm-carousel-btn[disabled] {
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+/* Carousel Dots (inside container, not cut off by border-radius) */
+.lm-carousel-dots {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 5px;
+  z-index: 2;
+  padding: 0 8px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.lm-carousel-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.6);
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.2s ease, transform 0.15s ease;
+}
+
+.lm-carousel-dot:hover {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.lm-carousel-dot-active {
+  background: #ffffff;
+  transform: scale(1.15);
+}
+
+/* ---- Badge ---- */
+.lm-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.lm-badge-guest-favorite {
+  background: var(--lm-color-badge-bg);
+  color: var(--lm-color-badge-text);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.lm-badge-guest-favorite .lm-badge-icon {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.lm-badge-superhost {
+  background: var(--lm-color-superhost-bg);
+  color: var(--lm-color-superhost-text);
+}
+
+.lm-badge-minstay {
+  background: #ff385c;
+  color: #ffffff;
+}
+
+/* ---- Heart / Favorite Button ---- */
+.lm-heart-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+}
+
+.lm-heart-btn:hover {
+  transform: scale(1.1);
+}
+
+.lm-heart-btn:active {
+  transform: scale(0.9);
+}
+
+.lm-heart-btn svg {
+  width: 24px;
+  height: 24px;
+  transition: fill 0.15s ease;
+}
+
+.lm-heart-btn .lm-heart-outline {
+  stroke: #ffffff;
+  stroke-width: 2;
+  fill: rgba(0, 0, 0, 0.5);
+}
+
+.lm-heart-btn-active .lm-heart-outline {
+  fill: var(--lm-color-heart);
+  stroke: var(--lm-color-heart);
+}
+
+/* ---- Card Info ---- */
+.lm-card-info {
+  padding: 10px 0 0;
+}
+
+.lm-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.lm-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--lm-color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.lm-card-rating {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 14px;
+  font-weight: 400;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.lm-card-rating svg {
+  width: 12px;
+  height: 12px;
+  fill: var(--lm-color-star);
+}
+
+.lm-card-rating-count {
+  color: var(--lm-color-text-secondary);
+}
+
+.lm-card-subtitle {
+  font-size: 14px;
+  color: var(--lm-color-text-secondary);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.lm-card-details {
+  font-size: 14px;
+  color: var(--lm-color-text-secondary);
+  line-height: 1.4;
+  margin-top: 1px;
+}
+
+.lm-card-dates {
+  font-size: 14px;
+  color: var(--lm-color-text-secondary);
+  line-height: 1.4;
+  margin-top: 1px;
+}
+
+.lm-card-price {
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.lm-card-price-value {
+  font-weight: 600;
+  text-decoration: underline;
+  color: var(--lm-color-text);
+}
+
+.lm-card-price-period {
+  font-weight: 400;
+  color: var(--lm-color-text);
+}
+
+.lm-card-tag {
+  font-size: 13px;
+  color: var(--lm-color-text-secondary);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+/* ---- Map Price Markers ---- */
+.lm-price-marker {
+  background: var(--lm-color-price-marker-bg);
+  color: var(--lm-color-price-marker-text);
+  padding: 4px 8px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--lm-font);
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.16);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  user-select: none;
+  line-height: 1.3;
+}
+
+.lm-price-marker:hover {
+  background: var(--lm-color-price-marker-hover-bg);
+  color: var(--lm-color-price-marker-hover-text);
+  transform: scale(1.06);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  z-index: 10 !important;
+}
+
+.lm-price-marker-active {
+  background: var(--lm-color-price-marker-active-bg) !important;
+  color: var(--lm-color-price-marker-active-text) !important;
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  z-index: 10 !important;
+}
+
+/* ---- Map Popup ---- */
+.lm-map-popup .leaflet-popup-content-wrapper {
+  border-radius: var(--lm-radius);
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16);
+}
+
+.lm-map-popup .leaflet-popup-content {
+  margin: 0;
+  width: 260px !important;
+}
+
+.lm-map-popup .leaflet-popup-tip-container {
+  display: none;
+}
+
+.lm-popup-img {
+  width: 100%;
+  height: 170px!important;
+  object-fit: cover;
+  display: block;
+}
+
+.lm-popup-body {
+  padding: 10px 12px 12px;
+}
+
+.lm-popup-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lm-color-text);
+  line-height: 1.3;
+}
+
+.lm-popup-price {
+  font-size: 13px;
+  color: var(--lm-color-text);
+  margin-top: 4px;
+}
+
+.lm-popup-price strong {
+  font-weight: 600;
+}
+
+/* ---- Map Controls (Leaflet overrides) ---- */
+.lm-map-panel .leaflet-control-zoom {
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+
+.lm-map-panel .leaflet-control-zoom a {
+  width: 36px !important;
+  height: 36px !important;
+  line-height: 36px !important;
+  font-size: 18px !important;
+  color: #222 !important;
+  border-bottom-color: #e0e0e0 !important;
+}
+
+.lm-map-panel .leaflet-control-zoom a:hover {
+  background: #f5f5f5 !important;
+}
+
+/* ---- Expand Map Button ---- */
+.lm-map-expand-btn {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 1000;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--lm-color-bg);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: background 0.15s ease;
+}
+
+.lm-map-expand-btn:hover {
+  background: #f5f5f5;
+}
+
+.lm-map-expand-btn svg {
+  width: 16px;
+  height: 16px;
+  stroke: #222;
+  stroke-width: 2;
+  fill: none;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 960px) {
+  .lm-widget {
+    flex-direction: column;
+  }
+
+  .lm-listings-panel {
+    flex: 0 0 auto;
+    max-width: 100%;
+    width: 100%;
+    height: auto;
+    max-height: 55vh;
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .lm-listings-panel::-webkit-scrollbar {
+    display: none;
+  }
+
+  .lm-listings-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .lm-map-panel {
+    flex: 1 1 0%;
+    min-height: 45vh;
+    border-left: none;
+    border-top: 1px solid var(--lm-color-border);
+  }
+
+  .lm-widget.lm-map-hidden .lm-listings-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .lm-listings-panel {
+    padding: 16px;
+    max-height: 50vh;
+  }
+
+  .lm-toolbar {
+    padding-bottom: 12px;
+    margin-bottom: 2px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .lm-sort-select {
+    font-size: 13px;
+    padding: 6px 32px 6px 12px;
+  }
+
+  .lm-toggle-map-btn {
+    font-size: 13px;
+    padding: 6px 14px;
+  }
+
+  .lm-listings-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .lm-widget.lm-map-hidden .lm-listings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lm-map-panel {
+    min-height: 50vh;
+  }
+
+  .lm-card-title {
+    font-size: 14px;
+  }
+
+  .lm-card-subtitle,
+  .lm-card-details,
+  .lm-card-dates,
+  .lm-card-price,
+  .lm-card-tag {
+    font-size: 13px;
+  }
+
+  .lm-pagination {
+    padding: 16px 0 4px;
+    gap: 2px;
+  }
+
+  .lm-pagination-btn {
+    min-width: 32px;
+    height: 32px;
+    font-size: 13px;
+  }
+}
+
+/* ---- Loading skeleton ---- */
+.lm-skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 37%, #f0f0f0 63%);
+  background-size: 200% 100%;
+  animation: lm-skeleton-pulse 1.5s ease infinite;
+  border-radius: var(--lm-radius);
+}
+
+@keyframes lm-skeleton-pulse {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.lm-skeleton-card .lm-skeleton-image {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--lm-radius);
+}
+
+.lm-skeleton-card .lm-skeleton-line {
+  height: 14px;
+  border-radius: 4px;
+  margin-top: 10px;
+}
+
+.lm-skeleton-card .lm-skeleton-line-short {
+  width: 60%;
+}
+
+.lm-skeleton-card .lm-skeleton-line-medium {
+  width: 80%;
+}
+
+/* ---- No results ---- */
+.lm-no-results {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--lm-color-text-secondary);
+  font-size: 16px;
+}
+
+.lm-no-results-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--lm-color-text);
+  margin-bottom: 8px;
+}

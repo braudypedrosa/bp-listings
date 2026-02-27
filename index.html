@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ListingsMap - Demo</title>
+  <link rel="stylesheet" href="listings-map.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    #widget { width: 100vw; height: calc(100vh - 44px); }
+    .demo-topbar {
+      height: 44px; display: flex; align-items: center; justify-content: space-between;
+      padding: 0 20px; border-bottom: 1px solid #eee; background: #fafafa; font-size: 13px;
+    }
+    .demo-topbar a { color: #222; text-decoration: none; font-weight: 600; }
+    .demo-topbar .docs-link { color: #555; font-weight: 500; }
+  </style>
+</head>
+<body>
+
+  <div class="demo-topbar">
+    <a href="index.html">ListingsMap <span style="font-weight:400;color:#999">v1.0.0</span></a>
+    <a href="docs.html" class="docs-link">Documentation &rarr;</a>
+  </div>
+  <div id="widget"></div>
+
+  <script src="listings-map.js"></script>
+  <script>
+    var listings = [
+      {
+        id: "1",
+        title: "Apartment in Quezon City",
+        subtitle: "Condo in Cubao | Sunset & City Lights",
+        details: "1 bedroom \u00b7 1 bed",
+        dates: "Feb 28 \u2013 Mar 5",
+        price: 13689,
+        pricePeriod: "for 5 nights",
+        tag: "Free cancellation",
+        rating: 5.0,
+        reviewCount: 89,
+        badge: "Guest favorite",
+        lat: 14.628,
+        lng: 121.055,
+        images: [
+          "https://picsum.photos/seed/apt1a/600/500",
+          "https://picsum.photos/seed/apt1b/600/500"
+        ]
+      },
+      {
+        id: "2",
+        title: "Condo in Makati",
+        subtitle: "Quiet Chic 1BR | Ave-Close + Calm Vibe",
+        details: "1 bedroom \u00b7 1 bed",
+        dates: "Feb 22 \u2013 27",
+        price: 8390,
+        pricePeriod: "for 5 nights",
+        tag: "Free cancellation",
+        rating: 4.91,
+        reviewCount: 11,
+        badge: "Superhost",
+        lat: 14.554,
+        lng: 121.024,
+        images: [
+          "https://picsum.photos/seed/condo2a/600/500",
+          "https://picsum.photos/seed/condo2b/600/500"
+        ]
+      },
+      {
+        id: "3",
+        title: "Luxury Suite in BGC",
+        subtitle: "Skyline Views | Modern High-Rise Living",
+        details: "1 bedroom \u00b7 1 bed",
+        dates: "Mar 1 \u2013 6",
+        price: 14040,
+        pricePeriod: "for 5 nights",
+        tag: "Free cancellation",
+        rating: 4.87,
+        reviewCount: 34,
+        badge: "Guest favorite",
+        lat: 14.5535,
+        lng: 121.0504,
+        images: [
+          "https://picsum.photos/seed/lux3a/600/500",
+          "https://picsum.photos/seed/lux3b/600/500"
+        ]
+      },
+      {
+        id: "4",
+        title: "Cozy Studio in Pasig",
+        subtitle: "Artistic Boho Space | Near Ortigas Center",
+        details: "Studio \u00b7 1 bed",
+        dates: "Mar 5 \u2013 10",
+        price: 7546,
+        pricePeriod: "for 5 nights",
+        tag: "Free cancellation",
+        rating: 4.95,
+        reviewCount: 52,
+        badge: "Guest favorite",
+        lat: 14.577,
+        lng: 121.085,
+        images: [
+          "https://picsum.photos/seed/cozy4a/600/500",
+          "https://picsum.photos/seed/cozy4b/600/500"
+        ]
+      },
+      {
+        id: "5",
+        title: "Modern Flat in Mandaluyong",
+        subtitle: "Central Location | Mall Access + Pool",
+        details: "1 bedroom \u00b7 1 bed",
+        dates: "Mar 3 \u2013 8",
+        price: 12097,
+        pricePeriod: "for 5 nights",
+        tag: "Free cancellation",
+        rating: 4.78,
+        reviewCount: 19,
+        badge: "Superhost",
+        lat: 14.579,
+        lng: 121.039,
+        images: [
+          "https://picsum.photos/seed/flat5a/600/500",
+          "https://picsum.photos/seed/flat5b/600/500"
+        ]
+      },
+      {
+        id: "6",
+        title: "Penthouse in Ortigas",
+        subtitle: "Premium Views | Full Amenities",
+        details: "2 bedrooms \u00b7 2 beds",
+        dates: "Feb 25 \u2013 Mar 2",
+        price: 18259,
+        pricePeriod: "for 5 nights",
+        rating: 4.92,
+        reviewCount: 7,
+        lat: 14.588,
+        lng: 121.062,
+        images: [
+          "https://picsum.photos/seed/pent6a/600/500",
+          "https://picsum.photos/seed/pent6b/600/500"
+        ]
+      },
+      {
+        id: "7",
+        title: "Studio in San Juan",
+        subtitle: "Cozy Retreat | Near Greenfields",
+        details: "Studio \u00b7 1 bed",
+        dates: "Mar 8 \u2013 13",
+        price: 6505,
+        pricePeriod: "for 5 nights",
+        tag: "Free cancellation",
+        rating: 4.83,
+        reviewCount: 27,
+        badge: "Superhost",
+        lat: 14.601,
+        lng: 121.035,
+        images: [
+          "https://picsum.photos/seed/sj7a/600/500",
+          "https://picsum.photos/seed/sj7b/600/500"
+        ]
+      },
+      {
+        id: "8",
+        title: "Loft in Taguig",
+        subtitle: "Industrial Chic | Near BGC Market",
+        details: "1 bedroom \u00b7 1 bed",
+        dates: "Mar 10 \u2013 15",
+        price: 9800,
+        pricePeriod: "for 5 nights",
+        tag: "Free cancellation",
+        rating: 4.89,
+        reviewCount: 43,
+        badge: "Guest favorite",
+        lat: 14.522,
+        lng: 121.057,
+        images: [
+          "https://picsum.photos/seed/loft8a/600/500",
+          "https://picsum.photos/seed/loft8b/600/500"
+        ]
+      },
+      {
+        id: "9",
+        title: "Villa in Antipolo",
+        subtitle: "Hilltop Views | Nature Escape",
+        details: "3 bedrooms \u00b7 3 beds",
+        dates: "Mar 12 \u2013 17",
+        price: 22500,
+        pricePeriod: "for 5 nights",
+        rating: 4.97,
+        reviewCount: 61,
+        badge: "Guest favorite",
+        lat: 14.585,
+        lng: 121.176,
+        images: [
+          "https://picsum.photos/seed/villa9a/600/500",
+          "https://picsum.photos/seed/villa9b/600/500"
+        ]
+      },
+      {
+        id: "10",
+        title: "Flat in Marikina",
+        subtitle: "Quiet Riverside | Family Friendly",
+        details: "2 bedrooms \u00b7 2 beds",
+        dates: "Mar 15 \u2013 20",
+        price: 5200,
+        pricePeriod: "for 5 nights",
+        tag: "Free cancellation",
+        rating: 4.74,
+        reviewCount: 15,
+        lat: 14.633,
+        lng: 121.102,
+        images: [
+          "https://picsum.photos/seed/mk10a/600/500",
+          "https://picsum.photos/seed/mk10b/600/500"
+        ]
+      }
+    ];
+
+    ListingsMap.init({
+      container: "#widget",
+      listings: listings,
+      currency: "\u20b1",
+      mapOptions: {
+        center: [14.58, 121.05],
+        zoom: 12
+      },
+      showMapToggle: true,
+      showSort: true,
+      showPagination: true,
+      pageSize: 4,
+
+      // Render your own search widget here
+      renderSearchSlot: function (containerEl) {
+        containerEl.innerHTML =
+          '<div style="display:flex;gap:8px;">' +
+            '<input type="text" placeholder="Search destinations..." style="' +
+              'flex:1;padding:10px 16px;border:1px solid #ddd;border-radius:8px;' +
+              'font-size:14px;font-family:inherit;outline:none;" />' +
+            '<button style="' +
+              'padding:10px 20px;border:none;border-radius:8px;' +
+              'background:#222;color:#fff;font-size:14px;cursor:pointer;' +
+              'font-family:inherit;">Search</button>' +
+          '</div>';
+      },
+
+      onFavorite: function (listing, isFavorited) {
+        console.log((isFavorited ? "Saved: " : "Removed: ") + listing.title);
+      },
+
+      onListingClick: function (listing) {
+        console.log("Clicked: " + listing.title);
+      }
+    });
+  </script>
+
+</body>
+</html>
