@@ -2,7 +2,7 @@
 
 Airbnb-style listings + map widget built with vanilla JavaScript and CSS.
 
-Current version: **1.0.4**
+Current version: **1.0.5**
 
 ## Overview
 
