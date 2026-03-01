@@ -247,8 +247,6 @@ main() {
   local package_name
   local target_version
   local new_tag
-  local npm_version_args=()
-
   validate_input "$requested"
 
   current_branch="$(git rev-parse --abbrev-ref HEAD)"
@@ -271,10 +269,10 @@ main() {
   target_version="$(resolve_target_version "$current_version" "$requested")"
 
   if [[ "$target_version" == "$current_version" ]]; then
-    npm_version_args+=(--allow-same-version)
+    npm version --no-git-tag-version --allow-same-version "$target_version" >/dev/null
+  else
+    npm version --no-git-tag-version "$target_version" >/dev/null
   fi
-
-  npm version --no-git-tag-version "${npm_version_args[@]}" "$target_version" >/dev/null
   sync_readme_version "$target_version"
   stage_version_files
 
