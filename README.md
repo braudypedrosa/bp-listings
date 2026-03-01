@@ -145,22 +145,4 @@ MIT
 
 ## Maintainer Workflow
 
-Edit source files in this repository:
-- `listings-map.js`
-- `listings-map.css`
-
-Then release updates by bumping `package.json` version, tagging (`vX.Y.Z`), and publishing.
-
-Use one command:
-
-```bash
-npm run release:patch
-# or: npm run release:minor
-# or: npm run release:major
-```
-
-This command sequence will:
-- verify you are on `main` with a clean working tree
-- bump version and create a release commit + git tag
-- push `main` and tags to GitHub
-- publish the new version to npm
+For the reusable release workflow, versioning rules, and verification steps, see [RELEASING.md](https://github.com/braudypedrosa/bp-listings/blob/main/RELEASING.md).
