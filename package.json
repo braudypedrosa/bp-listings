@@ -1,6 +1,6 @@
 {
   "name": "@braudypedrosa/bp-listings",
-  "version": "1.0.2",
+  "version": "1.0.4",
   "description": "Airbnb-style listings + map widget powered by vanilla JavaScript and Leaflet",
   "main": "./listings-map.js",
   "exports": {
