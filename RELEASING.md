@@ -5,6 +5,7 @@
 This repository releases from the `main` branch using `scripts/release.sh`.
 
 The script handles the version bump, release commit, git tag, push, and npm publish for `@braudypedrosa/bp-listings`.
+If the next requested version has already been used on npm, the script advances until it finds the next publishable version.
 
 ## Versioning
 
@@ -49,6 +50,7 @@ What each command does:
 - `patch`: bumps the last digit
 - `minor`: bumps the middle digit
 - `major`: bumps the first digit
+- if the first candidate has already been used on npm, the script keeps moving forward on the same release axis until it finds an unused version
 
 ## Exact Version Releases
 
@@ -63,7 +65,7 @@ This is useful when:
 - you need to align a release with a predetermined version
 - you need to release a specific unpublished semver target
 
-Do not use this to republish a version that already exists on npm.
+If the exact version has already been used on npm, the script starts from the next patch after the current local version and keeps moving forward until it finds an unused version.
 
 ## What the Release Script Does
 
@@ -74,13 +76,15 @@ Do not use this to republish a version that already exists on npm.
 3. Verifies the working tree is clean.
 4. Fetches `origin/main` and tags.
 5. Rebases local `main` onto `origin/main`.
-6. Runs `npm version` with the requested bump.
-7. Creates the release commit:
+6. Resolves the next publishable version from npm history.
+7. Runs `npm version` for that resolved version.
+8. Updates the README version line when present.
+9. Creates the release commit:
    - `chore(release): x.y.z`
-8. Creates the git tag:
+10. Creates the git tag:
    - `vx.y.z`
-9. Pushes `main` and tags to `origin`.
-10. Publishes the package to npm.
+11. Pushes `main` and tags to `origin`.
+12. Publishes the package to npm.
 
 ## Recommended Flow
 
@@ -120,6 +124,8 @@ Common issues:
   - fix: commit or stash changes before releasing
 - wrong branch
   - fix: switch to `main`
+- requested version was already used on npm
+  - fix: rerun the release command; the script will skip ahead to the next publishable version
 - npm auth failure
   - fix: run `npm whoami` and refresh login/token before releasing
 - publish succeeds but verification lags
