@@ -52,26 +52,6 @@
   -webkit-appearance: none;
   appearance: none;
 }
-.lm-widget button:hover, .lm-widget button:focus, .lm-widget button:focus-visible, .lm-widget button:active,
-.lm-widget input:hover,
-.lm-widget input:focus,
-.lm-widget input:focus-visible,
-.lm-widget input:active,
-.lm-widget select:hover,
-.lm-widget select:focus,
-.lm-widget select:focus-visible,
-.lm-widget select:active,
-.lm-widget textarea:hover,
-.lm-widget textarea:focus,
-.lm-widget textarea:focus-visible,
-.lm-widget textarea:active {
-  border: 0;
-  background: none;
-  outline: none;
-  box-shadow: none;
-  color: inherit;
-  text-decoration: none;
-}
 .lm-widget a {
   color: inherit;
   text-decoration: none;

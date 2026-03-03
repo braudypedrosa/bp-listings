@@ -54,17 +54,7 @@
     -webkit-appearance: none;
     appearance: none;
 
-    &:hover,
-    &:focus,
-    &:focus-visible,
-    &:active {
-      border: 0;
-      background: none;
-      outline: none;
-      box-shadow: none;
-      color: inherit;
-      text-decoration: none;
-    }
+
   }
 
   a {
