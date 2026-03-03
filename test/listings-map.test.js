@@ -4,75 +4,16 @@ import { describe, expect, it } from 'vitest';
 import { JSDOM } from 'jsdom';
 
 const listingsMapSource = fs.readFileSync(
-  path.resolve(process.cwd(), 'listings-map.js'),
+  path.resolve(process.cwd(), 'src/bp-listings.js'),
   'utf8'
-);
+).replace("import './bp-listings.scss';\n\n", '');
 const listingsMapStyles = fs.readFileSync(
-  path.resolve(process.cwd(), 'listings-map.css'),
+  path.resolve(process.cwd(), 'src/bp-listings.scss'),
   'utf8'
 );
-
-function createMockBPUISelect(window) {
-  return class MockBPUISelect {
-    constructor(root) {
-      this.root = root;
-      this.trigger = root.querySelector('.bp-ui-select__trigger');
-      this.valueNode = root.querySelector('.bp-ui-select__trigger-value');
-      this.input = root.querySelector('.bp-ui-select__input');
-      this.popover = root.querySelector('.bp-ui-select__popover');
-      this.options = Array.from(root.querySelectorAll('.bp-ui-select__option'));
-      this.handleTriggerClick = this.handleTriggerClick.bind(this);
-      this.handleOptionClick = this.handleOptionClick.bind(this);
-
-      this.trigger.addEventListener('click', this.handleTriggerClick);
-      this.options.forEach((option) => option.addEventListener('click', this.handleOptionClick));
-      this.setValue(root.getAttribute('data-value') || 'default', 'init');
-    }
-
-    handleTriggerClick() {
-      if (this.popover.hasAttribute('hidden')) {
-        this.popover.removeAttribute('hidden');
-      } else {
-        this.popover.setAttribute('hidden', '');
-      }
-    }
-
-    handleOptionClick(event) {
-      const value = event.currentTarget.getAttribute('data-value');
-      this.setValue(value, 'select');
-      this.root.dispatchEvent(new window.CustomEvent('bp-ui:select:change', {
-        bubbles: true,
-        detail: {
-          value,
-          previousValue: this.previousValue,
-          trigger: 'select',
-        },
-      }));
-    }
-
-    setValue(value, trigger = 'api') {
-      const nextValue = value || 'default';
-      this.previousValue = this.input.value || '';
-      this.root.setAttribute('data-value', nextValue);
-      this.input.value = nextValue;
-      this.options.forEach((option) => {
-        const selected = option.getAttribute('data-value') === nextValue;
-        option.classList.toggle('is-selected', selected);
-        if (selected) {
-          this.valueNode.textContent = option.textContent.trim();
-        }
-      });
-      if (trigger !== 'select') {
-        this.popover.setAttribute('hidden', '');
-      }
-    }
-
-    destroy() {
-      this.trigger.removeEventListener('click', this.handleTriggerClick);
-      this.options.forEach((option) => option.removeEventListener('click', this.handleOptionClick));
-    }
-  };
-}
+const sharedResetClass = ['bp', 'widget', 'reset'].join('-');
+const legacySelectClass = ['bp', 'ui', 'select'].join('-');
+const legacySelectEvent = `${['bp', 'ui'].join('-')}:select:change`;
 
 function buildLeafletStub(window) {
   const mapInstances = [];
@@ -199,7 +140,6 @@ function createEnvironment() {
   const { L, mapInstances } = buildLeafletStub(window);
 
   window.L = L;
-  window.BPUIComponents = { BPUISelect: createMockBPUISelect(window) };
   window.Element.prototype.scrollIntoView = () => {};
   window.HTMLElement.prototype.scrollTo = () => {};
   window.eval(listingsMapSource);
@@ -217,6 +157,11 @@ function buildListings() {
     {
       id: 'listing-1',
       title: 'Ocean Villa',
+      rating: '4.95',
+      reviewCount: 28,
+      subtitle: 'Entire villa in Batangas',
+      details: '3 bedrooms · 4 beds · 3 baths',
+      dates: 'Jun 12-15',
       price: 320,
       pricePeriod: 'per night',
       lat: 14.55,
@@ -226,6 +171,11 @@ function buildListings() {
     {
       id: 'listing-2',
       title: 'Garden Cabin',
+      rating: '4.82',
+      reviewCount: 14,
+      subtitle: 'Cabin in Tagaytay',
+      details: '2 bedrooms · 2 beds · 1 bath',
+      dates: 'Jun 18-20',
       price: 180,
       pricePeriod: 'per night',
       lat: 14.56,
@@ -235,6 +185,9 @@ function buildListings() {
     {
       id: 'listing-3',
       title: 'City Loft',
+      subtitle: 'Loft in Makati',
+      details: '1 bedroom · 1 bed · 1 bath',
+      dates: 'Jul 2-5',
       price: 240,
       pricePeriod: 'per night',
       lat: 14.57,
@@ -244,6 +197,11 @@ function buildListings() {
     {
       id: 'listing-4',
       title: 'Beach House',
+      rating: '5.0',
+      reviewCount: 8,
+      subtitle: 'Beachfront home in Zambales',
+      details: '4 bedrooms · 5 beds · 4 baths',
+      dates: 'Aug 1-4',
       price: 410,
       pricePeriod: 'per night',
       lat: 14.58,
@@ -270,12 +228,6 @@ function getRenderedTitles(container) {
 }
 
 function setSort(widget, window, value) {
-  if (widget.sortSelect?.matches?.('.bp-ui-select')) {
-    widget.sortSelect.querySelector('.bp-ui-select__trigger').click();
-    widget.sortSelect.querySelector(`.bp-ui-select__option[data-value="${value}"]`).click();
-    return;
-  }
-
   widget.sortSelect.value = value;
   widget.sortSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
 }
@@ -424,11 +376,7 @@ describe('bp-listings UMD runtime', () => {
     widget.setListings(buildListings().slice(0, 3));
 
     expect(widget._sortOrder).toBe('price-asc');
-    expect(
-      widget.sortSelect.matches('.bp-ui-select')
-        ? widget.sortSelect.getAttribute('data-value')
-        : widget.sortSelect.value
-    ).toBe('price-asc');
+    expect(widget.sortSelect.value).toBe('price-asc');
   });
 
   it('reapplies ascending price sort to a new subset', () => {
@@ -508,6 +456,23 @@ describe('bp-listings UMD runtime', () => {
     expect(widget.markers.map((marker) => marker._listingId)).toEqual(['listing-3', 'listing-1']);
   });
 
+  it('includes rating, subtitle, details, and dates in the map popup card', () => {
+    const { ListingsMap, window } = createEnvironment();
+    const widget = ListingsMap.init({
+      container: window.document.querySelector('#widget'),
+      listings: buildListings(),
+      pageSize: 0,
+    });
+
+    const popupHtml = widget.markers[0].popupHtml;
+
+    expect(popupHtml).toContain('lm-popup-rating');
+    expect(popupHtml).toContain('4.95');
+    expect(popupHtml).toContain('Entire villa in Batangas');
+    expect(popupHtml).toContain('3 bedrooms · 4 beds · 3 baths');
+    expect(popupHtml).toContain('Jun 12-15');
+  });
+
   it('setListings still paginates correctly under the 12-item default', () => {
     const { ListingsMap, window } = createEnvironment();
     const container = window.document.querySelector('#widget');
@@ -525,13 +490,7 @@ describe('bp-listings UMD runtime', () => {
     expect(getRenderedTitles(container)).toHaveLength(12);
   });
 
-  it('uses auto-fit minmax for the desktop map-hidden grid rule', () => {
-    expect(listingsMapStyles).toContain(
-      '.lm-widget.lm-map-hidden .lm-listings-grid {\n  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));'
-    );
-  });
-
-  it('adds the shared reset class to the widget root', () => {
+  it('defaults to fixed three-column grid mode on desktop', () => {
     const { ListingsMap, window } = createEnvironment();
     const container = window.document.querySelector('#widget');
 
@@ -540,7 +499,36 @@ describe('bp-listings UMD runtime', () => {
       listings: buildListings(),
     });
 
-    expect(container.classList.contains('bp-widget-reset')).toBe(true);
+    expect(listingsMapStyles).toContain('grid-template-columns: repeat(3, minmax(0, 1fr));');
+  });
+
+  it('does not add the legacy shared reset class to the widget root', () => {
+    const { ListingsMap, window } = createEnvironment();
+    const container = window.document.querySelector('#widget');
+
+    ListingsMap.init({
+      container,
+      listings: buildListings(),
+    });
+
+    expect(container.classList.contains(sharedResetClass)).toBe(false);
+  });
+
+  it('uses a native sort select and omits the legacy shared select path from the source stylesheet', () => {
+    const { ListingsMap, window } = createEnvironment();
+    const container = window.document.querySelector('#widget');
+
+    ListingsMap.init({
+      container,
+      listings: buildListings(),
+    });
+
+    expect(container.querySelector('.lm-sort-select')).not.toBeNull();
+    expect(container.querySelector(`.${legacySelectClass}`)).toBeNull();
+    expect(listingsMapSource).not.toContain(legacySelectEvent);
+    expect(listingsMapSource).not.toContain('BPUIComponents');
+    expect(listingsMapSource).not.toContain(sharedResetClass);
+    expect(listingsMapStyles).not.toContain(`.${legacySelectClass}`);
   });
 
   it('exports search-data helpers that match the documented payload convention', () => {

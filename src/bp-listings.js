@@ -1,3 +1,5 @@
+import './bp-listings.scss';
+
 /**
  * ListingsMap - Airbnb-style Listings + Map Widget
  * A standalone vanilla JavaScript library.
@@ -19,14 +21,20 @@
  */
 (function (root, factory) {
   /* UMD: AMD / CommonJS / Browser global */
-  if (typeof root["define"] === "function" && root["define"].amd) {
-    root["define"]([], factory);
-  } else if (typeof root["module"] === "object" && root["module"].exports) {
-    root["module"].exports = factory();
+  if (typeof define === 'function' && define.amd) {
+    define([], factory);
+  } else if (typeof module === 'object' && module.exports) {
+    module.exports = factory();
   } else {
     root.ListingsMap = factory();
   }
-})(typeof self !== "undefined" ? self : this, function (globalRoot) {
+})(
+  typeof globalThis !== "undefined"
+    ? globalThis
+    : typeof self !== "undefined"
+      ? self
+      : this,
+  function () {
   "use strict";
 
   // ==========================================
@@ -76,23 +84,124 @@
     );
   }
 
-  function getBPUISelectConstructor() {
-    if (!globalRoot || typeof globalRoot !== "object") {
+  function createBadgeElement(badgeValue, extraClassName) {
+    if (!badgeValue) {
       return null;
     }
 
-    if (typeof globalRoot.BPUISelect === "function") {
-      return globalRoot.BPUISelect;
+    var badgeText = String(badgeValue);
+    var badgeClass = "lm-badge ";
+    var isMinStay = badgeText.toLowerCase().indexOf("minimum stay") !== -1;
+
+    if (badgeText === "Guest favorite") {
+      badgeClass += "lm-badge-guest-favorite";
+    } else if (badgeText === "Superhost") {
+      badgeClass += "lm-badge-superhost";
+    } else if (isMinStay) {
+      badgeClass += "lm-badge-minstay";
+    } else {
+      badgeClass += "lm-badge-guest-favorite";
     }
 
-    if (
-      globalRoot.BPUIComponents &&
-      typeof globalRoot.BPUIComponents.BPUISelect === "function"
-    ) {
-      return globalRoot.BPUIComponents.BPUISelect;
+    if (extraClassName) {
+      badgeClass += extraClassName;
     }
 
-    return null;
+    var badgeContent = "";
+    if (badgeText === "Guest favorite") {
+      badgeContent =
+        '<span class="lm-badge-icon">' +
+        ICONS.trophy +
+        "</span> " +
+        badgeText;
+    } else {
+      badgeContent = badgeText;
+    }
+
+    return el("div", badgeClass, { html: badgeContent });
+  }
+
+  function createRatingElement(listing, extraClassName) {
+    if (!listing.rating) {
+      return null;
+    }
+
+    var rating = el("div", "lm-card-rating" + (extraClassName || ""));
+    rating.innerHTML =
+      ICONS.star +
+      " " +
+      listing.rating +
+      (listing.reviewCount
+        ? ' <span class="lm-card-rating-count">(' +
+          listing.reviewCount +
+          ")</span>"
+        : "");
+    return rating;
+  }
+
+  function createPriceElement(listing, currency) {
+    if (listing.price === undefined) {
+      return null;
+    }
+
+    var priceContainer = el("div", "lm-card-price");
+    var priceValue = formatPrice(listing.price, currency || "");
+    priceContainer.innerHTML =
+      '<span class="lm-card-price-value">' +
+      priceValue +
+      "</span>" +
+      (listing.pricePeriod
+        ? ' <span class="lm-card-price-period">' +
+          listing.pricePeriod +
+          "</span>"
+        : "");
+    return priceContainer;
+  }
+
+  function createMapPopupHtml(listing, priceLabel) {
+    return (
+      '<div class="lm-map-popup">' +
+      (listing.images && listing.images[0]
+        ? '<img class="lm-popup-img" src="' +
+          listing.images[0] +
+          '" alt="' +
+          (listing.title || "") +
+          '">'
+        : "") +
+      '<div class="lm-popup-body">' +
+      '<div class="lm-popup-header">' +
+      '<div class="lm-popup-title">' +
+      (listing.title || "") +
+      "</div>" +
+      (listing.rating
+        ? '<div class="lm-popup-rating">' +
+          ICONS.star +
+          " " +
+          listing.rating +
+          (listing.reviewCount
+            ? ' <span class="lm-popup-rating-count">(' +
+              listing.reviewCount +
+              ")</span>"
+            : "") +
+          "</div>"
+        : "") +
+      "</div>" +
+      (listing.subtitle
+        ? '<div class="lm-popup-subtitle">' + listing.subtitle + "</div>"
+        : "") +
+      (listing.details
+        ? '<div class="lm-popup-details">' + listing.details + "</div>"
+        : "") +
+      (listing.dates
+        ? '<div class="lm-popup-dates">' + listing.dates + "</div>"
+        : "") +
+      '<div class="lm-popup-price"><strong>' +
+      priceLabel +
+      "</strong>" +
+      (listing.pricePeriod ? " " + listing.pricePeriod : "") +
+      "</div>" +
+      "</div></div>"
+    );
   }
 
   function toArray(value) {
@@ -370,36 +479,8 @@
     self.carousel = new Carousel(listing.images || []);
     self.el.appendChild(self.carousel.el);
 
-    // Badge
     if (listing.badge) {
-      var badgeClass = "lm-badge ";
-      var badgeText = String(listing.badge);
-      var isMinStay =
-        badgeText.toLowerCase().indexOf("minimum stay") !== -1;
-
-      if (badgeText === "Guest favorite") {
-        badgeClass += "lm-badge-guest-favorite";
-      } else if (badgeText === "Superhost") {
-        badgeClass += "lm-badge-superhost";
-      } else if (isMinStay) {
-        badgeClass += "lm-badge-minstay";
-      } else {
-        badgeClass += "lm-badge-guest-favorite";
-      }
-
-      var badgeContent = "";
-      if (badgeText === "Guest favorite") {
-        badgeContent =
-          '<span class="lm-badge-icon">' +
-          ICONS.trophy +
-          "</span> " +
-          badgeText;
-      } else {
-        badgeContent = badgeText;
-      }
-
-      var badge = el("div", badgeClass, { html: badgeContent });
-      self.carousel.el.appendChild(badge);
+      self.carousel.el.appendChild(createBadgeElement(listing.badge));
     }
 
     // Heart button
@@ -424,63 +505,38 @@
 
     // Card Info
     var info = el("div", "lm-card-info");
-
-    // Header row (title + rating)
-    var header = el("div", "lm-card-header");
     var title = el("div", "lm-card-title", { text: listing.title || "" });
-    header.appendChild(title);
+    var subtitle = listing.subtitle
+      ? el("div", "lm-card-subtitle", { text: listing.subtitle })
+      : null;
+    var priceContainer = createPriceElement(listing, options.currency || "");
+    var header = el("div", "lm-card-header");
+    var rating = createRatingElement(listing);
 
-    if (listing.rating) {
-      var rating = el("div", "lm-card-rating");
-      rating.innerHTML =
-        ICONS.star +
-        " " +
-        listing.rating +
-        (listing.reviewCount
-          ? ' <span class="lm-card-rating-count">(' +
-            listing.reviewCount +
-            ")</span>"
-          : "");
+    header.appendChild(title);
+    if (rating) {
       header.appendChild(rating);
     }
     info.appendChild(header);
 
-    // Subtitle
-    if (listing.subtitle) {
-      info.appendChild(
-        el("div", "lm-card-subtitle", { text: listing.subtitle })
-      );
+    if (subtitle) {
+      info.appendChild(subtitle);
     }
 
-    // Details (bedrooms, beds)
     if (listing.details) {
       info.appendChild(
         el("div", "lm-card-details", { text: listing.details })
       );
     }
 
-    // Dates
     if (listing.dates) {
       info.appendChild(el("div", "lm-card-dates", { text: listing.dates }));
     }
 
-    // Price
-    if (listing.price !== undefined) {
-      var priceContainer = el("div", "lm-card-price");
-      var priceValue = formatPrice(listing.price, options.currency || "");
-      priceContainer.innerHTML =
-        '<span class="lm-card-price-value">' +
-        priceValue +
-        "</span>" +
-        (listing.pricePeriod
-          ? ' <span class="lm-card-price-period">' +
-            listing.pricePeriod +
-            "</span>"
-          : "");
+    if (priceContainer) {
       info.appendChild(priceContainer);
     }
 
-    // Tag (e.g. "Free cancellation")
     if (listing.tag) {
       info.appendChild(el("div", "lm-card-tag", { text: listing.tag }));
     }
@@ -531,7 +587,6 @@
       },
       config
     );
-
     self.cards = [];
     self.markers = [];
     self.activeListingId = null;
@@ -543,7 +598,6 @@
     self._searchSlot = null;
     self._searchSlotCleanup = null;
     self._isDestroyed = false;
-    self._sortSelectInstance = null;
     self._nativeSortChangeHandler = null;
 
     self._init();
@@ -567,7 +621,6 @@
     self.container = container;
     container.innerHTML = "";
     container.classList.add("lm-widget");
-    container.classList.add("bp-widget-reset");
 
     // Listings panel
     self.listingsPanel = el("div", "lm-listings-panel");
@@ -626,7 +679,6 @@
   // ==========================================
   ListingsMapWidget.prototype._renderToolbar = function () {
     var self = this;
-    var BPUISelect = getBPUISelectConstructor();
     self.toolbar = el("div", "lm-toolbar");
 
     // Left side: sort
@@ -640,26 +692,17 @@
         { value: "price-desc", label: "Price: High to Low" },
       ];
 
-      if (BPUISelect) {
-        self.sortSelect = self._createSortSelectControl(options);
-        sortWrap.appendChild(self.sortSelect);
-        self._sortSelectInstance = new BPUISelect(self.sortSelect);
-        self.sortSelect.addEventListener("bp-ui:select:change", function (event) {
-          self._applySortOrder(event.detail.value);
-        });
-      } else {
-        self.sortSelect = el("select", "lm-sort-select", { "aria-label": "Sort listings" });
-        options.forEach(function (opt) {
-          var option = el("option", null, { value: opt.value, text: opt.label });
-          self.sortSelect.appendChild(option);
-        });
-        self.sortSelect.value = self._sortOrder;
-        self._nativeSortChangeHandler = function () {
-          self._applySortOrder(self.sortSelect.value);
-        };
-        self.sortSelect.addEventListener("change", self._nativeSortChangeHandler);
-        sortWrap.appendChild(self.sortSelect);
-      }
+      self.sortSelect = el("select", "lm-sort-select", { "aria-label": "Sort listings" });
+      options.forEach(function (opt) {
+        var option = el("option", null, { value: opt.value, text: opt.label });
+        self.sortSelect.appendChild(option);
+      });
+      self.sortSelect.value = self._sortOrder;
+      self._nativeSortChangeHandler = function () {
+        self._applySortOrder(self.sortSelect.value);
+      };
+      self.sortSelect.addEventListener("change", self._nativeSortChangeHandler);
+      sortWrap.appendChild(self.sortSelect);
 
       left.appendChild(sortWrap);
     }
@@ -683,57 +726,6 @@
 
     self.toolbar.appendChild(right);
     self.listingsPanel.appendChild(self.toolbar);
-  };
-
-  ListingsMapWidget.prototype._createSortSelectControl = function (options) {
-    var root = el("div", "lm-sort-select bp-ui-select", {
-      "data-bp-ui-select": "",
-      "data-placeholder": "Sort: Default",
-      "data-value": this._sortOrder,
-      "aria-label": "Sort listings",
-    });
-    var trigger = el("button", "bp-ui-select__trigger", {
-      type: "button",
-      "aria-haspopup": "listbox",
-    });
-    var triggerValue = el("span", "bp-ui-select__trigger-value");
-    var triggerChevron = el("span", "bp-ui-select__trigger-chevron", {
-      html: ICONS.chevronDown,
-    });
-    var input = el("input", "bp-ui-select__input", {
-      type: "hidden",
-      value: this._sortOrder,
-      name: "lm-sort-order",
-    });
-    var popover = el("div", "bp-ui-select__popover", {
-      role: "listbox",
-    });
-
-    trigger.appendChild(triggerValue);
-    trigger.appendChild(triggerChevron);
-
-    options.forEach(function (optionConfig) {
-      var option = el("button", "bp-ui-select__option", {
-        type: "button",
-        "data-value": optionConfig.value,
-      });
-      var label = el("span", "bp-ui-select__option-label", {
-        text: optionConfig.label,
-      });
-      var indicator = el("span", "bp-ui-select__option-indicator", {
-        "aria-hidden": "true",
-      });
-
-      option.appendChild(label);
-      option.appendChild(indicator);
-      popover.appendChild(option);
-    });
-
-    root.appendChild(trigger);
-    root.appendChild(input);
-    root.appendChild(popover);
-
-    return root;
   };
 
   ListingsMapWidget.prototype._updateToggleLabel = function () {
@@ -772,11 +764,6 @@
 
   ListingsMapWidget.prototype._syncSortControl = function () {
     if (!this.sortSelect) {
-      return;
-    }
-
-    if (this._sortSelectInstance) {
-      this._sortSelectInstance.setValue(this._sortOrder, "api");
       return;
     }
 
@@ -960,26 +947,7 @@
         icon: icon,
       }).addTo(self.map);
 
-      // Popup content mirrors _initMap so behavior is consistent
-      var popupHtml =
-        '<div class="lm-map-popup">' +
-        (listing.images && listing.images[0]
-          ? '<img class="lm-popup-img" src="' +
-            listing.images[0] +
-            '" alt="' +
-            (listing.title || "") +
-            '">'
-          : "") +
-        '<div class="lm-popup-body">' +
-        '<div class="lm-popup-title">' +
-        (listing.title || "") +
-        "</div>" +
-        '<div class="lm-popup-price"><strong>' +
-        priceLabel +
-        "</strong>" +
-        (listing.pricePeriod ? " " + listing.pricePeriod : "") +
-        "</div>" +
-        "</div></div>";
+      var popupHtml = createMapPopupHtml(listing, priceLabel);
 
       marker.bindPopup(popupHtml, {
         closeButton: true,
@@ -1044,26 +1012,7 @@
           self.map
         );
 
-        // Popup
-        var popupHtml =
-          '<div class="lm-map-popup">' +
-          (listing.images && listing.images[0]
-            ? '<img class="lm-popup-img" src="' +
-              listing.images[0] +
-              '" alt="' +
-              (listing.title || "") +
-              '">'
-            : "") +
-          '<div class="lm-popup-body">' +
-          '<div class="lm-popup-title">' +
-          (listing.title || "") +
-          "</div>" +
-          '<div class="lm-popup-price"><strong>' +
-          priceLabel +
-          "</strong>" +
-          (listing.pricePeriod ? " " + listing.pricePeriod : "") +
-          "</div>" +
-          "</div></div>";
+        var popupHtml = createMapPopupHtml(listing, priceLabel);
 
         marker.bindPopup(popupHtml, {
           closeButton: true,
@@ -1294,17 +1243,13 @@
       this.map.remove();
       this.map = null;
     }
-    if (this._sortSelectInstance) {
-      this._sortSelectInstance.destroy();
-      this._sortSelectInstance = null;
-    } else if (this.sortSelect && this._nativeSortChangeHandler) {
+    if (this.sortSelect && this._nativeSortChangeHandler) {
       this.sortSelect.removeEventListener("change", this._nativeSortChangeHandler);
       this._nativeSortChangeHandler = null;
     }
     if (this.container) {
       this.container.innerHTML = "";
       this.container.classList.remove("lm-widget");
-      this.container.classList.remove("bp-widget-reset");
     }
     this._searchSlot = null;
     this.sortSelect = null;
@@ -1330,6 +1275,6 @@
     filterListingsBySearchData: filterListingsBySearchData,
 
     /** Version */
-    version: "1.1.0",
+    version: "1.0.0",
   };
 });

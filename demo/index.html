@@ -8,7 +8,7 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23000'/%3E%3Cpath d='M18 20h28v24H18z' fill='white'/%3E%3Cpath d='M24 16h16v8H24z' fill='%23000'/%3E%3C/svg%3E"
     />
-    <link rel="stylesheet" href="./listings-map.css" />
+    <link rel="stylesheet" href="../dist/bp-listings.css" />
     <style>
       :root {
         color-scheme: light;
@@ -171,14 +171,16 @@
       </section>
     </main>
 
-    <script src="./listings-map.js"></script>
     <script type="module">
+      import '@fortawesome/fontawesome-free/css/all.min.css';
+      import '../src/bp-listings.js';
       import '@braudypedrosa/bp-calendar/styles';
+      import '@braudypedrosa/bp-search-widget';
       import '@braudypedrosa/bp-search-widget/styles';
-      import { BPSearchWidget } from '@braudypedrosa/bp-search-widget';
 
       const output = document.querySelector('#demo-output');
       const resetButton = document.querySelector('#reset-listings');
+      const { BPSearchWidget } = window;
 
       const writeOutput = (label, payload) => {
         output.textContent = `${label}\n${JSON.stringify(payload, null, 2)}`;
@@ -220,9 +222,10 @@
         },
       ];
 
-      const fieldTypeMap = new Map(
-        [...fieldDefinitions, ...filterDefinitions].map((field) => [field.key, field.type])
-      );
+      const matchListing = window.ListingsMap.createSearchDataMatcher({
+        fields: fieldDefinitions,
+        filters: filterDefinitions,
+      });
 
       const allListings = [
         {
@@ -347,137 +350,6 @@
           },
         },
       ];
-
-      const normalizeString = (value) => {
-        if (value === null || value === undefined) {
-          return '';
-        }
-
-        return String(value).trim().toLowerCase();
-      };
-
-      const toArray = (value) => {
-        if (Array.isArray(value)) {
-          return value;
-        }
-
-        if (value === null || value === undefined) {
-          return [];
-        }
-
-        return [value];
-      };
-
-      const normalizeStringArray = (value) =>
-        toArray(value).map((entry) => normalizeString(entry)).filter(Boolean);
-
-      const matchesSubstring = (haystackValue, needleValue) => {
-        const needle = normalizeString(needleValue);
-
-        if (!needle) {
-          return true;
-        }
-
-        return normalizeStringArray(haystackValue).some((value) => value.includes(needle));
-      };
-
-      const matchesExact = (haystackValue, needleValue) => {
-        const needle = normalizeString(needleValue);
-
-        if (!needle) {
-          return true;
-        }
-
-        return normalizeStringArray(haystackValue).some((value) => value === needle);
-      };
-
-      const matchesAllChoices = (haystackValue, needleValues) => {
-        const selectedValues = normalizeStringArray(needleValues);
-
-        if (selectedValues.length === 0) {
-          return true;
-        }
-
-        const availableValues = new Set(normalizeStringArray(haystackValue));
-        return selectedValues.every((value) => availableValues.has(value));
-      };
-
-      const matchesCounter = (haystackValue, needleValue) => {
-        const numericNeedle = Number(needleValue);
-        const numericHaystack = Number(haystackValue);
-
-        if (!Number.isFinite(numericNeedle)) {
-          return true;
-        }
-
-        if (!Number.isFinite(numericHaystack)) {
-          return false;
-        }
-
-        return numericHaystack >= numericNeedle;
-      };
-
-      const isValidDateString = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
-
-      const matchesAvailability = (availability, checkIn, checkOut) => {
-        if (!Array.isArray(availability) || !isValidDateString(checkIn) || !isValidDateString(checkOut)) {
-          return false;
-        }
-
-        return availability.some((windowRange) => (
-          windowRange &&
-          isValidDateString(windowRange.start) &&
-          isValidDateString(windowRange.end) &&
-          windowRange.start <= checkIn &&
-          windowRange.end >= checkOut
-        ));
-      };
-
-      const matchValues = (type, listingValue, submittedValue) => {
-        if (type === 'checkbox') {
-          return matchesAllChoices(listingValue, submittedValue);
-        }
-
-        if (type === 'select' || type === 'radio') {
-          return matchesExact(listingValue, submittedValue);
-        }
-
-        if (type === 'counter') {
-          return matchesCounter(listingValue, submittedValue);
-        }
-
-        return matchesSubstring(listingValue, submittedValue);
-      };
-
-      const matchListing = (listing, payload) => {
-        const searchData = listing.searchData || {};
-        const fieldValues = searchData.fields || {};
-        const filterValues = searchData.filters || {};
-
-        if (!matchesSubstring(searchData.location, payload.location)) {
-          return false;
-        }
-
-        if (payload.checkIn && payload.checkOut) {
-          if (!matchesAvailability(searchData.availability, payload.checkIn, payload.checkOut)) {
-            return false;
-          }
-        }
-
-        for (const [key, value] of Object.entries(payload.customFields || {})) {
-          if (!matchValues(fieldTypeMap.get(key), fieldValues[key], value)) {
-            return false;
-          }
-        }
-
-        for (const [key, value] of Object.entries(payload.filters || {})) {
-          if (!matchValues(fieldTypeMap.get(key), filterValues[key], value)) {
-            return false;
-          }
-        }
-
-        return true;
-      };
 
       const widget = window.ListingsMap.init({
         container: '#widget-demo',

@@ -1,85 +1,66 @@
 # bp-listings
 
-Airbnb-style listings + map widget built with vanilla JavaScript and CSS.
+A framework-agnostic listings grid and interactive map widget for vacation rental browsing, powered by Leaflet.
 
-Current version: **1.1.0**
+`bp-listings` focuses on presentation: cards, markers, sorting, pagination, and a search-slot area where you can mount your own search UI.
 
-## Overview
+## Highlights
 
-`bp-listings` renders a listings grid and interactive map in one widget container.
-It is framework-agnostic, distributed as standalone JS/CSS, and uses Leaflet for map rendering.
-
-`bp-listings` does not bundle a search UI. Search is integrated through the consumer-controlled
-`renderSearchSlot` hook, which lets you mount your own widget above the listings grid and drive
-result updates through `setListings()`.
-
-## Features
-
-- Standalone UMD distribution (`ListingsMap.init(...)`)
-- Auto-loads Leaflet CSS/JS when `window.L` is not present
-- Listings cards with image carousel and badges
-- Favorite toggle with callback
-- Click-through callback for listing cards
-- Sort controls (`default`, `price-asc`, `price-desc`)
-- Optional pagination with configurable page size
-- Show/hide map toggle and fullscreen map action
-- Marker-to-card and card-to-marker highlighting behavior
-- Consumer-controlled search slot renderer with optional cleanup
-- Runtime methods to update listings and navigate map/pagination state
+- listings grid and interactive map in one widget
+- built-in sort control with `default`, `price-asc`, and `price-desc`
+- optional pagination with configurable page size
+- map toggle and fullscreen map action
+- card-to-marker and marker-to-card highlighting
+- favorite and listing-click callbacks
+- consumer-controlled `renderSearchSlot` hook
+- helper utilities for matching `searchData` payloads
+- automatic Leaflet asset loading when `window.L` is not already present
 
 ## Installation
 
-### npm
-
 ```bash
-npm install @braudypedrosa/bp-listings
+npm install github:braudypedrosa/bp-listings @fortawesome/fontawesome-free
 ```
+
+## Usage
 
 ```js
 import '@braudypedrosa/bp-listings';
 import '@braudypedrosa/bp-listings/styles';
-```
 
-### Browser
-
-```html
-<link rel="stylesheet" href="./listings-map.css" />
-<script src="./listings-map.js"></script>
-```
-
-## Quick Start
-
-```html
-<div id="widget" style="width:100%;height:100vh;"></div>
-<script>
-  const widget = ListingsMap.init({
-    container: '#widget',
-    currency: '₱',
-    mapOptions: { center: [14.58, 121.05], zoom: 12 },
-    listings: [
-      {
-        id: '1',
-        title: 'Apartment in Quezon City',
-        price: 13689,
-        pricePeriod: 'for 5 nights',
-        lat: 14.628,
-        lng: 121.055,
-        images: ['photo-1.jpg', 'photo-2.jpg']
-      }
-    ],
-    onFavorite: (listing, isFavorited) => {
-      console.log(listing.id, isFavorited);
+const widget = window.ListingsMap.init({
+  container: '#widget',
+  currency: '₱',
+  mapOptions: { center: [14.58, 121.05], zoom: 12 },
+  listings: [
+    {
+      id: 'listing-1',
+      title: 'Apartment in Quezon City',
+      price: 13689,
+      pricePeriod: 'for 5 nights',
+      lat: 14.628,
+      lng: 121.055,
+      images: ['photo-1.jpg', 'photo-2.jpg'],
     },
-    onListingClick: (listing) => {
-      console.log('clicked', listing.id);
-    },
-  });
-</script>
+  ],
+  onFavorite: (listing, isFavorited) => {
+    console.log(listing.id, isFavorited);
+  },
+  onListingClick: (listing) => {
+    console.log('clicked', listing.id);
+  },
+});
 ```
 
-## Listing Data Schema
+## Browser Global
 
-Each listing object can include:
+The package registers:
+
+- `window.ListingsMap`
+
+## Listing Shape
+
+Each listing can include:
 
 - `id: string` required
 - `title: string` required
@@ -93,73 +74,63 @@ Each listing object can include:
 - `tag?: string`
 - `rating?: number`
 - `reviewCount?: number`
-- `badge?: string` for labels such as `Guest favorite` or `Superhost`
+- `badge?: string`
 - `images?: string[]`
 - `favorited?: boolean`
+- `searchData?: { location?, availability?, fields?, filters? }`
 
-### Recommended Consumer-side `searchData`
-
-When you integrate external search through `renderSearchSlot`, the recommended consumer-side shape is:
-
-```js
-{
-  searchData: {
-    location?: string | string[],
-    availability?: Array<{ start: string, end: string }>,
-    fields?: Record<string, string | string[]>,
-    filters?: Record<string, string | string[] | number>
-  }
-}
-```
-
-Important:
-
-- this is a docs/demo convention only
-- `bp-listings` does not parse or enforce `searchData` automatically
-- matching remains consumer-owned, but helper exports are available for the documented convention
-
-## Config Options
+## Options
 
 - `container: HTMLElement | string` required
 - `listings: Array<Listing>` default `[]`
 - `currency: string` default `'$'`
 - `mapOptions.center: [number, number]` default `[14.55, 121.03]`
 - `mapOptions.zoom: number` default `12`
-- `tileUrl: string` OpenStreetMap by default
+- `tileUrl: string` defaults to OpenStreetMap
 - `tileAttribution: string`
 - `showMapToggle: boolean` default `true`
 - `showSort: boolean` default `true`
 - `showPagination: boolean` default `true`
-- `pageSize: number` default `12`; explicit `0` or any non-positive value disables paging
-- `renderSearchSlot: (containerEl: HTMLElement, listingsWidget: ListingsMapWidget) => void | (() => void)`
+- `pageSize: number` default `12`
+- `renderSearchSlot: (containerEl, widget) => void | (() => void)`
 - `onFavorite: (listing, isFavorited) => void`
 - `onListingClick: (listing) => void`
-- `onMapMoveEnd: ({bounds, center, zoom}) => void`
+- `onMapMoveEnd: ({ north, south, east, west, center, zoom }) => void`
 
-`renderSearchSlot` rules:
+Explicit `pageSize: 0` or any non-positive value disables pagination.
 
-- `containerEl` is the mounted slot host rendered above the listings grid
-- `listingsWidget` is the active `bp-listings` instance
-- if the callback returns a function, `bp-listings` calls it during `destroy()`
-- legacy usage that only accepts `(containerEl)` still works
+## Instance API
 
-## Using `bp-search-widget` with `renderSearchSlot`
+The widget returned by `window.ListingsMap.init(...)` exposes:
 
-This is the official integration model:
+- `setListings(listings)`
+- `panToListing(id)`
+- `toggleMap()`
+- `goToPage(pageNumber)`
+- `destroy()`
 
-- keep `bp-listings` focused on rendering cards, markers, sorting, and pagination
-- mount `BPSearchWidget` inside `renderSearchSlot`
-- keep the full `allListings` dataset outside the widget
-- filter externally on `BPSearchWidget.onSearch`
-- push the filtered subset back into `bp-listings` with `setListings(filteredListings)`
+## Search Slot Integration
 
-This pattern requires a bundler or dev server that can resolve npm packages and SCSS style imports.
+Use `renderSearchSlot` when you want to mount an external search UI above the listings grid.
+
+Recommended flow:
+
+1. Keep the full `allListings` dataset outside the widget.
+2. Mount your search UI in `renderSearchSlot`.
+3. Filter externally when the search changes.
+4. Push the filtered subset back into `bp-listings` with `setListings(filteredListings)`.
+
+Example with `bp-search-widget`:
 
 ```js
 import '@braudypedrosa/bp-listings';
 import '@braudypedrosa/bp-listings/styles';
+import '@fortawesome/fontawesome-free/css/all.min.css';
+import '@braudypedrosa/bp-calendar/styles';
+import '@braudypedrosa/bp-search-widget';
 import '@braudypedrosa/bp-search-widget/styles';
-import { BPSearchWidget } from '@braudypedrosa/bp-search-widget';
+
+const { BPSearchWidget } = window;
 
 const allListings = [
   {
@@ -179,26 +150,6 @@ const allListings = [
         'bp-bedrooms': 4,
         'bp-view': 'Ocean',
         'bp-amenities': ['Pool', 'Spa'],
-      },
-    },
-  },
-  {
-    id: 'cabin-ridge',
-    title: 'Ridge cabin outside Tagaytay',
-    price: 11800,
-    lat: 14.1153,
-    lng: 120.9625,
-    images: ['cabin-1.jpg'],
-    searchData: {
-      location: ['Tagaytay', 'Ridge'],
-      availability: [{ start: '2030-04-01', end: '2030-04-18' }],
-      fields: {
-        'bp-guests': '4',
-      },
-      filters: {
-        'bp-bedrooms': 2,
-        'bp-view': 'Garden',
-        'bp-amenities': ['Pet Friendly'],
       },
     },
   },
@@ -231,21 +182,14 @@ const filterDefinitions = [
     options: ['Ocean', 'Garden', 'City'],
     width: '28%',
   },
-  {
-    key: 'bp-amenities',
-    label: 'Amenities',
-    type: 'checkbox',
-    options: ['Pool', 'Spa', 'Gym', 'Pet Friendly'],
-    width: '48%',
-  },
 ];
 
-const matchListing = ListingsMap.createSearchDataMatcher({
+const matchListing = window.ListingsMap.createSearchDataMatcher({
   fields: fieldDefinitions,
   filters: filterDefinitions,
 });
 
-const listingsWidget = ListingsMap.init({
+window.ListingsMap.init({
   container: '#widget',
   listings: allListings,
   renderSearchSlot: (containerEl, widget) => {
@@ -258,10 +202,7 @@ const listingsWidget = ListingsMap.init({
         datepickerPlacement: 'auto',
       },
       onSearch: (payload) => {
-        const filteredListings = ListingsMap.filterListingsBySearchData(allListings, payload, {
-          fields: fieldDefinitions,
-          filters: filterDefinitions,
-        });
+        const filteredListings = allListings.filter((listing) => matchListing(listing, payload));
         widget.setListings(filteredListings);
       },
     });
@@ -271,68 +212,26 @@ const listingsWidget = ListingsMap.init({
     };
   },
 });
-
-document.querySelector('#reset-listings').addEventListener('click', () => {
-  listingsWidget.setListings(allListings);
-});
 ```
 
-## Public Methods
+## Search Data Helpers
 
-Returned widget instance exposes:
+Use these helpers when your listings carry a consumer-defined `searchData` object:
 
-- `setListings(listings)` and preserves the current sort selection while resetting pagination to page 1
-- `panToListing(id)`
-- `toggleMap()`
-- `goToPage(pageNumber)`
-- `destroy()`
+- `window.ListingsMap.createSearchDataMatcher({ fields, filters })`
+- `window.ListingsMap.filterListingsBySearchData(listings, payload, config)`
 
-Helper exports on `window.ListingsMap` or the package module:
+Recommended `searchData` shape:
 
-- `createSearchDataMatcher({ fields, filters })`
-- `filterListingsBySearchData(listings, payload, { fields, filters })`
-
-## Styling and Theming
-
-All classes are scoped with `.lm-*`.
-
-You can customize appearance via CSS variables on `.lm-widget`, including:
-
-- typography via `--lm-font`
-- text and border colors
-- badge colors
-- price marker colors
-- radii
-
-The included stylesheet is standalone and does not require a CSS framework.
-
-When the map is hidden, the desktop listings grid auto-fits to the available width so wider layouts
-can expand beyond the default 2-column split view.
-
-## Local Demo
-
-This repo includes a local demo at [index.html](/Users/braudypedorsa/Projects/libraries/bp-listings/index.html).
-
-Run it with:
-
-```bash
-npm install
-npm run dev
+```js
+{
+  searchData: {
+    location?: string | string[],
+    availability?: Array<{ start: string, end: string }>,
+    fields?: Record<string, string | string[]>,
+    filters?: Record<string, string | string[] | number>
+  }
+}
 ```
 
-The local demo uses Vite only for development so it can resolve `@braudypedrosa/bp-search-widget`,
-`@braudypedrosa/bp-ui-components`, and their styles. The published `bp-listings` package format is unchanged.
-
-## Notes
-
-- Leaflet is loaded from `unpkg` automatically if it is not already available on the page.
-- If your app already loads Leaflet, the widget reuses existing `window.L`.
-- `bp-listings` does not include internal search/filter behavior.
-
-## License
-
-MIT
-
-## Maintainer Workflow
-
-For the reusable release workflow, versioning rules, and verification steps, see [RELEASING.md](https://github.com/braudypedrosa/bp-listings/blob/main/RELEASING.md).
+`bp-listings` does not enforce this schema automatically. The helpers are there when you want the documented matching behavior.
