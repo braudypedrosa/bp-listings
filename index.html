@@ -51,36 +51,58 @@
       }
 
       .demo-copy {
-        max-width: 760px;
-        margin: 18px 0 32px;
+        max-width: 780px;
+        margin: 18px 0 18px;
         color: #525252;
         font-size: 18px;
         line-height: 1.6;
       }
 
+      .demo-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 28px;
+      }
+
+      .demo-note {
+        margin: 0;
+        font-size: 14px;
+        color: #525252;
+      }
+
+      .demo-action-btn {
+        appearance: none;
+        border: 1px solid #111111;
+        border-radius: 999px;
+        background: #111111;
+        color: #ffffff;
+        padding: 11px 18px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.15s ease, opacity 0.15s ease;
+      }
+
+      .demo-action-btn:hover {
+        opacity: 0.92;
+      }
+
+      .demo-action-btn:active {
+        transform: scale(0.98);
+      }
+
       #widget-demo {
         width: 100%;
-        height: min(78vh, 840px);
-        min-height: 680px;
+        height: min(78vh, 860px);
+        min-height: 700px;
         border: 1px solid #d4d4d4;
         border-radius: 28px;
         overflow: hidden;
         background: #ffffff;
         box-shadow: 0 24px 60px -42px rgba(0, 0, 0, 0.42);
-      }
-
-      .demo-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 16px;
-        border: 1px solid #d4d4d4;
-        border-radius: 999px;
-        background: #ffffff;
-        font-size: 14px;
-        font-weight: 500;
-        color: #111111;
-        box-shadow: 0 16px 30px -28px rgba(0, 0, 0, 0.35);
       }
 
       .demo-log {
@@ -119,8 +141,8 @@
         }
 
         #widget-demo {
-          height: min(72vh, 760px);
-          min-height: 620px;
+          height: min(74vh, 760px);
+          min-height: 640px;
         }
       }
     </style>
@@ -128,33 +150,87 @@
   <body>
     <main class="demo-shell">
       <p class="demo-kicker">Demo</p>
-      <h1 class="demo-title">Listings and map, packaged.</h1>
+      <h1 class="demo-title">External search, mounted into the slot.</h1>
       <p class="demo-copy">
-        This page uses the standalone <code>ListingsMap</code> widget with local source files and
-        a simple search-slot placeholder so the root demo matches the other BP library entry pages.
+        This page keeps <code>bp-listings</code> presentation-only. It mounts
+        <code>BPSearchWidget</code> through <code>renderSearchSlot</code>,
+        filters a local <code>allListings</code> array externally, then pushes the result
+        back into the widget with <code>setListings()</code>.
       </p>
+      <div class="demo-actions">
+        <p class="demo-note">
+          The map starts collapsed so the external search bar has room. Use the built-in map toggle
+          to inspect marker updates.
+        </p>
+        <button id="reset-listings" class="demo-action-btn" type="button">Reset listings</button>
+      </div>
       <div id="widget-demo"></div>
       <section class="demo-log">
         <h2>Latest event</h2>
-        <pre id="demo-output">Interact with the widget to see callback payloads.</pre>
+        <pre id="demo-output">Interact with the search widget to see external filtering output.</pre>
       </section>
     </main>
 
     <script src="./listings-map.js"></script>
-    <script>
+    <script type="module">
+      import '@braudypedrosa/bp-calendar/styles';
+      import '@braudypedrosa/bp-search-widget/styles';
+      import { BPSearchWidget } from '@braudypedrosa/bp-search-widget';
+
       const output = document.querySelector('#demo-output');
+      const resetButton = document.querySelector('#reset-listings');
 
       const writeOutput = (label, payload) => {
         output.textContent = `${label}\n${JSON.stringify(payload, null, 2)}`;
       };
 
-      const listings = [
+      const fieldDefinitions = [
+        {
+          key: 'bp-guests',
+          label: 'Guests',
+          type: 'select',
+          options: ['2', '4', '6'],
+          position: 'end',
+        },
+      ];
+
+      const filterDefinitions = [
+        {
+          key: 'bp-bedrooms',
+          label: 'Bedrooms',
+          type: 'counter',
+          min: 0,
+          max: 8,
+          defaultValue: 0,
+          width: '24%',
+        },
+        {
+          key: 'bp-view',
+          label: 'View',
+          type: 'select',
+          options: ['Ocean', 'Garden', 'City'],
+          width: '28%',
+        },
+        {
+          key: 'bp-amenities',
+          label: 'Amenities',
+          type: 'checkbox',
+          options: ['Pool', 'Spa', 'Gym', 'Pet Friendly'],
+          width: '48%',
+        },
+      ];
+
+      const fieldTypeMap = new Map(
+        [...fieldDefinitions, ...filterDefinitions].map((field) => [field.key, field.type])
+      );
+
+      const allListings = [
         {
           id: 'villa-ocean',
           title: 'Ocean-view villa in Batangas',
-          subtitle: 'Entire villa · 4 beds',
+          subtitle: 'Entire villa · 4 bedrooms',
           details: 'Private pool · 6 guests · 3 baths',
-          dates: 'Mar 12 - Mar 16',
+          dates: 'Apr 12 - Apr 16',
           price: 21450,
           pricePeriod: 'for 4 nights',
           lat: 13.7565,
@@ -167,6 +243,18 @@
             'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80',
             'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80',
           ],
+          searchData: {
+            location: ['Batangas', 'Nasugbu', 'Beachfront'],
+            availability: [{ start: '2030-04-10', end: '2030-04-30' }],
+            fields: {
+              'bp-guests': '6',
+            },
+            filters: {
+              'bp-bedrooms': 4,
+              'bp-view': 'Ocean',
+              'bp-amenities': ['Pool', 'Spa'],
+            },
+          },
         },
         {
           id: 'cabin-ridge',
@@ -185,6 +273,18 @@
             'https://images.unsplash.com/photo-1448630360428-65456885c650?auto=format&fit=crop&w=1200&q=80',
             'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80',
           ],
+          searchData: {
+            location: ['Tagaytay', 'Ridge', 'Highlands'],
+            availability: [{ start: '2030-04-01', end: '2030-04-18' }],
+            fields: {
+              'bp-guests': '4',
+            },
+            filters: {
+              'bp-bedrooms': 2,
+              'bp-view': 'Garden',
+              'bp-amenities': ['Pet Friendly'],
+            },
+          },
         },
         {
           id: 'loft-city',
@@ -203,20 +303,214 @@
             'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80',
             'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80',
           ],
+          searchData: {
+            location: ['Makati', 'City Center', 'Business District'],
+            availability: [{ start: '2030-05-01', end: '2030-05-22' }],
+            fields: {
+              'bp-guests': '2',
+            },
+            filters: {
+              'bp-bedrooms': 1,
+              'bp-view': 'City',
+              'bp-amenities': ['Gym'],
+            },
+          },
+        },
+        {
+          id: 'garden-suite',
+          title: 'Garden suite in Alabang',
+          subtitle: 'Entire suite · 3 bedrooms',
+          details: 'Patio · 6 guests · 2 baths',
+          dates: 'Jun 8 - Jun 12',
+          price: 15600,
+          pricePeriod: 'for 4 nights',
+          lat: 14.4231,
+          lng: 121.0437,
+          rating: 4.93,
+          reviewCount: 61,
+          tag: 'Free cancellation',
+          images: [
+            'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80',
+          ],
+          searchData: {
+            location: ['Alabang', 'South Metro', 'Garden District'],
+            availability: [{ start: '2030-06-05', end: '2030-06-22' }],
+            fields: {
+              'bp-guests': '6',
+            },
+            filters: {
+              'bp-bedrooms': 3,
+              'bp-view': 'Garden',
+              'bp-amenities': ['Pool', 'Pet Friendly'],
+            },
+          },
         },
       ];
+
+      const normalizeString = (value) => {
+        if (value === null || value === undefined) {
+          return '';
+        }
+
+        return String(value).trim().toLowerCase();
+      };
+
+      const toArray = (value) => {
+        if (Array.isArray(value)) {
+          return value;
+        }
+
+        if (value === null || value === undefined) {
+          return [];
+        }
+
+        return [value];
+      };
+
+      const normalizeStringArray = (value) =>
+        toArray(value).map((entry) => normalizeString(entry)).filter(Boolean);
+
+      const matchesSubstring = (haystackValue, needleValue) => {
+        const needle = normalizeString(needleValue);
+
+        if (!needle) {
+          return true;
+        }
+
+        return normalizeStringArray(haystackValue).some((value) => value.includes(needle));
+      };
+
+      const matchesExact = (haystackValue, needleValue) => {
+        const needle = normalizeString(needleValue);
+
+        if (!needle) {
+          return true;
+        }
+
+        return normalizeStringArray(haystackValue).some((value) => value === needle);
+      };
+
+      const matchesAllChoices = (haystackValue, needleValues) => {
+        const selectedValues = normalizeStringArray(needleValues);
+
+        if (selectedValues.length === 0) {
+          return true;
+        }
+
+        const availableValues = new Set(normalizeStringArray(haystackValue));
+        return selectedValues.every((value) => availableValues.has(value));
+      };
+
+      const matchesCounter = (haystackValue, needleValue) => {
+        const numericNeedle = Number(needleValue);
+        const numericHaystack = Number(haystackValue);
+
+        if (!Number.isFinite(numericNeedle)) {
+          return true;
+        }
+
+        if (!Number.isFinite(numericHaystack)) {
+          return false;
+        }
+
+        return numericHaystack >= numericNeedle;
+      };
+
+      const isValidDateString = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+      const matchesAvailability = (availability, checkIn, checkOut) => {
+        if (!Array.isArray(availability) || !isValidDateString(checkIn) || !isValidDateString(checkOut)) {
+          return false;
+        }
+
+        return availability.some((windowRange) => (
+          windowRange &&
+          isValidDateString(windowRange.start) &&
+          isValidDateString(windowRange.end) &&
+          windowRange.start <= checkIn &&
+          windowRange.end >= checkOut
+        ));
+      };
+
+      const matchValues = (type, listingValue, submittedValue) => {
+        if (type === 'checkbox') {
+          return matchesAllChoices(listingValue, submittedValue);
+        }
+
+        if (type === 'select' || type === 'radio') {
+          return matchesExact(listingValue, submittedValue);
+        }
+
+        if (type === 'counter') {
+          return matchesCounter(listingValue, submittedValue);
+        }
+
+        return matchesSubstring(listingValue, submittedValue);
+      };
+
+      const matchListing = (listing, payload) => {
+        const searchData = listing.searchData || {};
+        const fieldValues = searchData.fields || {};
+        const filterValues = searchData.filters || {};
+
+        if (!matchesSubstring(searchData.location, payload.location)) {
+          return false;
+        }
+
+        if (payload.checkIn && payload.checkOut) {
+          if (!matchesAvailability(searchData.availability, payload.checkIn, payload.checkOut)) {
+            return false;
+          }
+        }
+
+        for (const [key, value] of Object.entries(payload.customFields || {})) {
+          if (!matchValues(fieldTypeMap.get(key), fieldValues[key], value)) {
+            return false;
+          }
+        }
+
+        for (const [key, value] of Object.entries(payload.filters || {})) {
+          if (!matchValues(fieldTypeMap.get(key), filterValues[key], value)) {
+            return false;
+          }
+        }
+
+        return true;
+      };
 
       const widget = window.ListingsMap.init({
         container: '#widget-demo',
         currency: '₱',
         mapOptions: { center: [14.33, 121.0], zoom: 9 },
-        pageSize: 4,
-        listings,
-        renderSearchSlot: (container) => {
-          const pill = document.createElement('div');
-          pill.className = 'demo-pill';
-          pill.textContent = 'Search slot placeholder';
-          container.appendChild(pill);
+        listings: allListings,
+        renderSearchSlot: (container, listingsWidget) => {
+          const searchWidget = new BPSearchWidget(container, {
+            fields: fieldDefinitions,
+            filters: filterDefinitions,
+            calendarOptions: {
+              startDate: new Date('2030-03-01T00:00:00'),
+              monthsToShow: 2,
+              datepickerPlacement: 'auto',
+            },
+            onSearch: (payload) => {
+              const filtered = allListings.filter((listing) => matchListing(listing, payload));
+              listingsWidget.setListings(filtered);
+              writeOutput('search', {
+                payload,
+                resultIds: filtered.map((listing) => listing.id),
+              });
+            },
+            onFilterClick: (payload) => {
+              writeOutput('filter-click', payload);
+            },
+          });
+
+          window.demoSearchWidget = searchWidget;
+
+          return () => {
+            searchWidget.destroy();
+          };
         },
         onFavorite: (listing, isFavorited) => {
           writeOutput('favorite', { id: listing.id, isFavorited });
@@ -227,6 +521,15 @@
         onMapMoveEnd: (payload) => {
           writeOutput('map-move', payload);
         },
+      });
+
+      widget.toggleMap();
+
+      resetButton.addEventListener('click', () => {
+        widget.setListings(allListings);
+        writeOutput('reset', {
+          resultIds: allListings.map((listing) => listing.id),
+        });
       });
 
       window.demoWidget = widget;

@@ -9,8 +9,9 @@
  *     listings: [...],
  *     mapOptions: { center: [14.55, 121.03], zoom: 12 },
  *     currency: '₱',
- *     renderSearchSlot: (containerEl) => {
+ *     renderSearchSlot: (containerEl, widget) => {
  *       // Render your own search UI (shortcode, library, etc.) into containerEl
+ *       // Optionally return a cleanup function
  *     },
  *     onFavorite: (listing, isFavorited) => {},
  *     onListingClick: (listing) => {},
@@ -350,8 +351,8 @@
         showMapToggle: true,
         showSort: true,
         showPagination: true,
-        pageSize: 0, // 0 = no pagination
-        renderSearchSlot: null, // callback: function(containerEl) { ... } — render your own search UI
+        pageSize: 12, // explicit values <= 0 disable pagination
+        renderSearchSlot: null, // callback: function(containerEl, widget) { ... } — optionally return a cleanup function
         onFavorite: null,
         onListingClick: null,
         onMapMoveEnd: null,
@@ -367,6 +368,9 @@
     self._sortOrder = "default";
     self._currentPage = 1;
     self._originalListings = self.config.listings.slice();
+    self._searchSlot = null;
+    self._searchSlotCleanup = null;
+    self._isDestroyed = false;
 
     self._init();
   }
@@ -398,21 +402,23 @@
       self._renderToolbar();
     }
 
+    container.appendChild(self.listingsPanel);
+
+    self.listingsGrid = el("div", "lm-listings-grid");
+    self.paginationContainer = el("div", "lm-pagination");
+
     // Search slot: let consumer render their own search UI
     if (self.config.renderSearchSlot) {
       self._searchSlot = el("div", "lm-search-slot");
       self.listingsPanel.appendChild(self._searchSlot);
-      self.config.renderSearchSlot(self._searchSlot);
+      var cleanup = self.config.renderSearchSlot(self._searchSlot, self);
+      if (typeof cleanup === "function") {
+        self._searchSlotCleanup = cleanup;
+      }
     }
 
-    self.listingsGrid = el("div", "lm-listings-grid");
     self.listingsPanel.appendChild(self.listingsGrid);
-
-    // Pagination container
-    self.paginationContainer = el("div", "lm-pagination");
     self.listingsPanel.appendChild(self.paginationContainer);
-
-    container.appendChild(self.listingsPanel);
 
     // Map panel
     self.mapPanel = el("div", "lm-map-panel");
@@ -651,6 +657,94 @@
     self._renderPagination();
   };
 
+  ListingsMapWidget.prototype._rebuildMarkers = function () {
+    var self = this;
+
+    if (!self.map) {
+      return;
+    }
+
+    self.markers.forEach(function (m) {
+      self.map.removeLayer(m);
+    });
+    self.markers = [];
+
+    // Re-add markers (use typeof so lat/lng 0 are valid), including popups
+    var L = window.L;
+    self.config.listings.forEach(function (listing) {
+      var hasCoords =
+        typeof listing.lat === "number" &&
+        typeof listing.lng === "number" &&
+        !Number.isNaN(listing.lat) &&
+        !Number.isNaN(listing.lng);
+      if (!hasCoords) {
+        return;
+      }
+
+      var priceLabel = formatPrice(
+        listing.price,
+        self.config.currency || ""
+      );
+
+      var icon = L.divIcon({
+        className: "",
+        html:
+          '<div class="lm-price-marker" data-listing-id="' +
+          listing.id +
+          '">' +
+          priceLabel +
+          "</div>",
+        iconSize: null,
+        iconAnchor: [0, 0],
+      });
+
+      var marker = L.marker([listing.lat, listing.lng], {
+        icon: icon,
+      }).addTo(self.map);
+
+      // Popup content mirrors _initMap so behavior is consistent
+      var popupHtml =
+        '<div class="lm-map-popup">' +
+        (listing.images && listing.images[0]
+          ? '<img class="lm-popup-img" src="' +
+            listing.images[0] +
+            '" alt="' +
+            (listing.title || "") +
+            '">'
+          : "") +
+        '<div class="lm-popup-body">' +
+        '<div class="lm-popup-title">' +
+        (listing.title || "") +
+        "</div>" +
+        '<div class="lm-popup-price"><strong>' +
+        priceLabel +
+        "</strong>" +
+        (listing.pricePeriod ? " " + listing.pricePeriod : "") +
+        "</div>" +
+        "</div></div>";
+
+      marker.bindPopup(popupHtml, {
+        closeButton: true,
+        className: "lm-map-popup",
+        maxWidth: 270,
+        offset: [0, -5],
+      });
+
+      marker.on("click", function () {
+        self._highlightListing(listing.id);
+        self._scrollToCard(listing.id);
+      });
+
+      marker._listingId = listing.id;
+      self.markers.push(marker);
+    });
+
+    if (self.markers.length > 0) {
+      var group = L.featureGroup(self.markers);
+      self.map.fitBounds(group.getBounds().pad(0.1));
+    }
+  };
+
   ListingsMapWidget.prototype._initMap = function () {
     var self = this;
     var L = window.L;
@@ -866,94 +960,10 @@
   ListingsMapWidget.prototype.setListings = function (listings) {
     this._originalListings = listings.slice();
     this._currentPage = 1;
-    this._sortOrder = "default";
-    if (this.sortSelect) this.sortSelect.value = "default";
-    this.config.listings = listings;
+    this.config.listings = listings.slice();
+    this._sortListings();
     this._renderListings();
-
-    // Remove old markers
-    var self = this;
-    if (self.map) {
-      self.markers.forEach(function (m) {
-        self.map.removeLayer(m);
-      });
-      self.markers = [];
-
-      // Re-add markers (use typeof so lat/lng 0 are valid), including popups
-      var L = window.L;
-      listings.forEach(function (listing) {
-        var hasCoords =
-          typeof listing.lat === "number" &&
-          typeof listing.lng === "number" &&
-          !Number.isNaN(listing.lat) &&
-          !Number.isNaN(listing.lng);
-        if (!hasCoords) {
-          return;
-        }
-
-        var priceLabel = formatPrice(
-          listing.price,
-          self.config.currency || ""
-        );
-
-        var icon = L.divIcon({
-          className: "",
-          html:
-            '<div class="lm-price-marker" data-listing-id="' +
-            listing.id +
-            '">' +
-            priceLabel +
-            "</div>",
-          iconSize: null,
-          iconAnchor: [0, 0],
-        });
-
-        var marker = L.marker([listing.lat, listing.lng], {
-          icon: icon,
-        }).addTo(self.map);
-
-        // Popup content mirrors _initMap so behavior is consistent
-        var popupHtml =
-          '<div class="lm-map-popup">' +
-          (listing.images && listing.images[0]
-            ? '<img class="lm-popup-img" src="' +
-              listing.images[0] +
-              '" alt="' +
-              (listing.title || "") +
-              '">'
-            : "") +
-          '<div class="lm-popup-body">' +
-          '<div class="lm-popup-title">' +
-          (listing.title || "") +
-          "</div>" +
-          '<div class="lm-popup-price"><strong>' +
-          priceLabel +
-          "</strong>" +
-          (listing.pricePeriod ? " " + listing.pricePeriod : "") +
-          "</div>" +
-          "</div></div>";
-
-        marker.bindPopup(popupHtml, {
-          closeButton: true,
-          className: "lm-map-popup",
-          maxWidth: 270,
-          offset: [0, -5],
-        });
-
-        marker.on("click", function () {
-          self._highlightListing(listing.id);
-          self._scrollToCard(listing.id);
-        });
-
-        marker._listingId = listing.id;
-        self.markers.push(marker);
-      });
-
-      if (self.markers.length > 0) {
-        var group = L.featureGroup(self.markers);
-        self.map.fitBounds(group.getBounds().pad(0.1));
-      }
-    }
+    this._rebuildMarkers();
   };
 
   /**
@@ -1011,6 +1021,16 @@
    * Destroy the widget
    */
   ListingsMapWidget.prototype.destroy = function () {
+    if (this._isDestroyed) {
+      return;
+    }
+
+    this._isDestroyed = true;
+    if (this._searchSlotCleanup) {
+      var cleanup = this._searchSlotCleanup;
+      this._searchSlotCleanup = null;
+      cleanup();
+    }
     if (this.map) {
       this.map.remove();
       this.map = null;
@@ -1019,6 +1039,7 @@
       this.container.innerHTML = "";
       this.container.classList.remove("lm-widget");
     }
+    this._searchSlot = null;
   };
 
 
