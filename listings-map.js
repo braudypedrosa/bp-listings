@@ -26,7 +26,7 @@
   } else {
     root.ListingsMap = factory();
   }
-})(typeof self !== "undefined" ? self : this, function () {
+})(typeof self !== "undefined" ? self : this, function (globalRoot) {
   "use strict";
 
   // ==========================================
@@ -74,6 +74,178 @@
     return (
       currency + amount.toLocaleString("en-US", { maximumFractionDigits: 0 })
     );
+  }
+
+  function getBPUISelectConstructor() {
+    if (!globalRoot || typeof globalRoot !== "object") {
+      return null;
+    }
+
+    if (typeof globalRoot.BPUISelect === "function") {
+      return globalRoot.BPUISelect;
+    }
+
+    if (
+      globalRoot.BPUIComponents &&
+      typeof globalRoot.BPUIComponents.BPUISelect === "function"
+    ) {
+      return globalRoot.BPUIComponents.BPUISelect;
+    }
+
+    return null;
+  }
+
+  function toArray(value) {
+    if (Array.isArray(value)) return value;
+    if (value === null || value === undefined || value === "") return [];
+    return [value];
+  }
+
+  function normalizeString(value) {
+    if (value === null || value === undefined) return "";
+    return String(value).trim().toLowerCase();
+  }
+
+  function normalizeStringArray(value) {
+    return toArray(value).map(function (entry) {
+      return normalizeString(entry);
+    }).filter(Boolean);
+  }
+
+  function matchesSubstring(sourceValue, queryValue) {
+    var query = normalizeString(queryValue);
+    if (!query) return true;
+    return normalizeStringArray(sourceValue).some(function (entry) {
+      return entry.indexOf(query) !== -1;
+    });
+  }
+
+  function matchesExact(sourceValue, queryValue) {
+    var query = normalizeString(queryValue);
+    if (!query) return true;
+    return normalizeStringArray(sourceValue).some(function (entry) {
+      return entry === query;
+    });
+  }
+
+  function matchesAllChoices(sourceValue, queryValue) {
+    var requested = normalizeStringArray(queryValue);
+    var available;
+
+    if (requested.length === 0) return true;
+    available = new Set(normalizeStringArray(sourceValue));
+    return requested.every(function (entry) {
+      return available.has(entry);
+    });
+  }
+
+  function matchesCounter(sourceValue, queryValue) {
+    var requested;
+    var available;
+
+    if (queryValue === null || queryValue === undefined || queryValue === "") {
+      return true;
+    }
+
+    requested = Number(queryValue);
+    available = Number(sourceValue);
+
+    if (!Number.isFinite(requested)) return true;
+    if (!Number.isFinite(available)) return false;
+    return available >= requested;
+  }
+
+  function isValidDateString(value) {
+    return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+  }
+
+  function matchesAvailability(availability, checkIn, checkOut) {
+    if (!checkIn && !checkOut) return true;
+
+    if (
+      !Array.isArray(availability) ||
+      !isValidDateString(checkIn) ||
+      !isValidDateString(checkOut)
+    ) {
+      return false;
+    }
+
+    return availability.some(function (range) {
+      return (
+        range &&
+        isValidDateString(range.start) &&
+        isValidDateString(range.end) &&
+        range.start <= checkIn &&
+        range.end >= checkOut
+      );
+    });
+  }
+
+  function buildFieldTypeMap(config) {
+    var map = {};
+    var fieldDescriptors = Array.isArray(config && config.fields) ? config.fields : [];
+    var filterDescriptors = Array.isArray(config && config.filters) ? config.filters : [];
+
+    fieldDescriptors.concat(filterDescriptors).forEach(function (descriptor) {
+      if (descriptor && descriptor.key && descriptor.type) {
+        map[descriptor.key] = descriptor.type;
+      }
+    });
+
+    return map;
+  }
+
+  function matchSearchValue(type, listingValue, submittedValue) {
+    if (type === "checkbox") return matchesAllChoices(listingValue, submittedValue);
+    if (type === "select" || type === "radio") return matchesExact(listingValue, submittedValue);
+    if (type === "counter") return matchesCounter(listingValue, submittedValue);
+    return matchesSubstring(listingValue, submittedValue);
+  }
+
+  function createSearchDataMatcher(config) {
+    var fieldTypeMap = buildFieldTypeMap(config);
+
+    return function matchListingToSearchPayload(listing, payload) {
+      var searchData = (listing && listing.searchData) || {};
+      var fieldValues = searchData.fields || {};
+      var filterValues = searchData.filters || {};
+      var customFields = (payload && payload.customFields) || {};
+      var filters = (payload && payload.filters) || {};
+      var key;
+
+      if (!matchesSubstring(searchData.location, payload && payload.location)) {
+        return false;
+      }
+
+      if (!matchesAvailability(searchData.availability, payload && payload.checkIn, payload && payload.checkOut)) {
+        return false;
+      }
+
+      for (key in customFields) {
+        if (Object.prototype.hasOwnProperty.call(customFields, key)) {
+          if (!matchSearchValue(fieldTypeMap[key], fieldValues[key], customFields[key])) {
+            return false;
+          }
+        }
+      }
+
+      for (key in filters) {
+        if (Object.prototype.hasOwnProperty.call(filters, key)) {
+          if (!matchSearchValue(fieldTypeMap[key], filterValues[key], filters[key])) {
+            return false;
+          }
+        }
+      }
+
+      return true;
+    };
+  }
+
+  function filterListingsBySearchData(listings, payload, config) {
+    var matcher = createSearchDataMatcher(config);
+    return toArray(listings).filter(function (listing) {
+      return matcher(listing, payload || {});
+    });
   }
 
   function loadLeaflet(callback) {
@@ -371,6 +543,8 @@
     self._searchSlot = null;
     self._searchSlotCleanup = null;
     self._isDestroyed = false;
+    self._sortSelectInstance = null;
+    self._nativeSortChangeHandler = null;
 
     self._init();
   }
@@ -393,6 +567,7 @@
     self.container = container;
     container.innerHTML = "";
     container.classList.add("lm-widget");
+    container.classList.add("bp-widget-reset");
 
     // Listings panel
     self.listingsPanel = el("div", "lm-listings-panel");
@@ -451,6 +626,7 @@
   // ==========================================
   ListingsMapWidget.prototype._renderToolbar = function () {
     var self = this;
+    var BPUISelect = getBPUISelectConstructor();
     self.toolbar = el("div", "lm-toolbar");
 
     // Left side: sort
@@ -458,23 +634,33 @@
 
     if (self.config.showSort) {
       var sortWrap = el("div", "lm-sort-wrapper");
-      self.sortSelect = el("select", "lm-sort-select", { "aria-label": "Sort listings" });
       var options = [
         { value: "default", label: "Sort: Default" },
         { value: "price-asc", label: "Price: Low to High" },
         { value: "price-desc", label: "Price: High to Low" },
       ];
-      options.forEach(function (opt) {
-        var option = el("option", null, { value: opt.value, text: opt.label });
-        self.sortSelect.appendChild(option);
-      });
-      self.sortSelect.addEventListener("change", function () {
-        self._sortOrder = self.sortSelect.value;
-        self._currentPage = 1;
-        self._sortListings();
-        self._renderListings();
-      });
-      sortWrap.appendChild(self.sortSelect);
+
+      if (BPUISelect) {
+        self.sortSelect = self._createSortSelectControl(options);
+        sortWrap.appendChild(self.sortSelect);
+        self._sortSelectInstance = new BPUISelect(self.sortSelect);
+        self.sortSelect.addEventListener("bp-ui:select:change", function (event) {
+          self._applySortOrder(event.detail.value);
+        });
+      } else {
+        self.sortSelect = el("select", "lm-sort-select", { "aria-label": "Sort listings" });
+        options.forEach(function (opt) {
+          var option = el("option", null, { value: opt.value, text: opt.label });
+          self.sortSelect.appendChild(option);
+        });
+        self.sortSelect.value = self._sortOrder;
+        self._nativeSortChangeHandler = function () {
+          self._applySortOrder(self.sortSelect.value);
+        };
+        self.sortSelect.addEventListener("change", self._nativeSortChangeHandler);
+        sortWrap.appendChild(self.sortSelect);
+      }
+
       left.appendChild(sortWrap);
     }
 
@@ -497,6 +683,57 @@
 
     self.toolbar.appendChild(right);
     self.listingsPanel.appendChild(self.toolbar);
+  };
+
+  ListingsMapWidget.prototype._createSortSelectControl = function (options) {
+    var root = el("div", "lm-sort-select bp-ui-select", {
+      "data-bp-ui-select": "",
+      "data-placeholder": "Sort: Default",
+      "data-value": this._sortOrder,
+      "aria-label": "Sort listings",
+    });
+    var trigger = el("button", "bp-ui-select__trigger", {
+      type: "button",
+      "aria-haspopup": "listbox",
+    });
+    var triggerValue = el("span", "bp-ui-select__trigger-value");
+    var triggerChevron = el("span", "bp-ui-select__trigger-chevron", {
+      html: ICONS.chevronDown,
+    });
+    var input = el("input", "bp-ui-select__input", {
+      type: "hidden",
+      value: this._sortOrder,
+      name: "lm-sort-order",
+    });
+    var popover = el("div", "bp-ui-select__popover", {
+      role: "listbox",
+    });
+
+    trigger.appendChild(triggerValue);
+    trigger.appendChild(triggerChevron);
+
+    options.forEach(function (optionConfig) {
+      var option = el("button", "bp-ui-select__option", {
+        type: "button",
+        "data-value": optionConfig.value,
+      });
+      var label = el("span", "bp-ui-select__option-label", {
+        text: optionConfig.label,
+      });
+      var indicator = el("span", "bp-ui-select__option-indicator", {
+        "aria-hidden": "true",
+      });
+
+      option.appendChild(label);
+      option.appendChild(indicator);
+      popover.appendChild(option);
+    });
+
+    root.appendChild(trigger);
+    root.appendChild(input);
+    root.appendChild(popover);
+
+    return root;
   };
 
   ListingsMapWidget.prototype._updateToggleLabel = function () {
@@ -523,6 +760,27 @@
         return (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0);
       });
     }
+  };
+
+  ListingsMapWidget.prototype._applySortOrder = function (value) {
+    this._sortOrder = value || "default";
+    this._currentPage = 1;
+    this._sortListings();
+    this._renderListings();
+    this._syncSortControl();
+  };
+
+  ListingsMapWidget.prototype._syncSortControl = function () {
+    if (!this.sortSelect) {
+      return;
+    }
+
+    if (this._sortSelectInstance) {
+      this._sortSelectInstance.setValue(this._sortOrder, "api");
+      return;
+    }
+
+    this.sortSelect.value = this._sortOrder;
   };
 
   // ==========================================
@@ -962,6 +1220,7 @@
     this._currentPage = 1;
     this.config.listings = listings.slice();
     this._sortListings();
+    this._syncSortControl();
     this._renderListings();
     this._rebuildMarkers();
   };
@@ -1035,11 +1294,20 @@
       this.map.remove();
       this.map = null;
     }
+    if (this._sortSelectInstance) {
+      this._sortSelectInstance.destroy();
+      this._sortSelectInstance = null;
+    } else if (this.sortSelect && this._nativeSortChangeHandler) {
+      this.sortSelect.removeEventListener("change", this._nativeSortChangeHandler);
+      this._nativeSortChangeHandler = null;
+    }
     if (this.container) {
       this.container.innerHTML = "";
       this.container.classList.remove("lm-widget");
+      this.container.classList.remove("bp-widget-reset");
     }
     this._searchSlot = null;
+    this.sortSelect = null;
   };
 
 
@@ -1057,7 +1325,11 @@
       return new ListingsMapWidget(config);
     },
 
+    createSearchDataMatcher: createSearchDataMatcher,
+
+    filterListingsBySearchData: filterListingsBySearchData,
+
     /** Version */
-    version: "1.0.0",
+    version: "1.1.0",
   };
 });

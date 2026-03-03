@@ -12,6 +12,68 @@ const listingsMapStyles = fs.readFileSync(
   'utf8'
 );
 
+function createMockBPUISelect(window) {
+  return class MockBPUISelect {
+    constructor(root) {
+      this.root = root;
+      this.trigger = root.querySelector('.bp-ui-select__trigger');
+      this.valueNode = root.querySelector('.bp-ui-select__trigger-value');
+      this.input = root.querySelector('.bp-ui-select__input');
+      this.popover = root.querySelector('.bp-ui-select__popover');
+      this.options = Array.from(root.querySelectorAll('.bp-ui-select__option'));
+      this.handleTriggerClick = this.handleTriggerClick.bind(this);
+      this.handleOptionClick = this.handleOptionClick.bind(this);
+
+      this.trigger.addEventListener('click', this.handleTriggerClick);
+      this.options.forEach((option) => option.addEventListener('click', this.handleOptionClick));
+      this.setValue(root.getAttribute('data-value') || 'default', 'init');
+    }
+
+    handleTriggerClick() {
+      if (this.popover.hasAttribute('hidden')) {
+        this.popover.removeAttribute('hidden');
+      } else {
+        this.popover.setAttribute('hidden', '');
+      }
+    }
+
+    handleOptionClick(event) {
+      const value = event.currentTarget.getAttribute('data-value');
+      this.setValue(value, 'select');
+      this.root.dispatchEvent(new window.CustomEvent('bp-ui:select:change', {
+        bubbles: true,
+        detail: {
+          value,
+          previousValue: this.previousValue,
+          trigger: 'select',
+        },
+      }));
+    }
+
+    setValue(value, trigger = 'api') {
+      const nextValue = value || 'default';
+      this.previousValue = this.input.value || '';
+      this.root.setAttribute('data-value', nextValue);
+      this.input.value = nextValue;
+      this.options.forEach((option) => {
+        const selected = option.getAttribute('data-value') === nextValue;
+        option.classList.toggle('is-selected', selected);
+        if (selected) {
+          this.valueNode.textContent = option.textContent.trim();
+        }
+      });
+      if (trigger !== 'select') {
+        this.popover.setAttribute('hidden', '');
+      }
+    }
+
+    destroy() {
+      this.trigger.removeEventListener('click', this.handleTriggerClick);
+      this.options.forEach((option) => option.removeEventListener('click', this.handleOptionClick));
+    }
+  };
+}
+
 function buildLeafletStub(window) {
   const mapInstances = [];
 
@@ -137,6 +199,7 @@ function createEnvironment() {
   const { L, mapInstances } = buildLeafletStub(window);
 
   window.L = L;
+  window.BPUIComponents = { BPUISelect: createMockBPUISelect(window) };
   window.Element.prototype.scrollIntoView = () => {};
   window.HTMLElement.prototype.scrollTo = () => {};
   window.eval(listingsMapSource);
@@ -207,6 +270,12 @@ function getRenderedTitles(container) {
 }
 
 function setSort(widget, window, value) {
+  if (widget.sortSelect?.matches?.('.bp-ui-select')) {
+    widget.sortSelect.querySelector('.bp-ui-select__trigger').click();
+    widget.sortSelect.querySelector(`.bp-ui-select__option[data-value="${value}"]`).click();
+    return;
+  }
+
   widget.sortSelect.value = value;
   widget.sortSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
 }
@@ -355,7 +424,11 @@ describe('bp-listings UMD runtime', () => {
     widget.setListings(buildListings().slice(0, 3));
 
     expect(widget._sortOrder).toBe('price-asc');
-    expect(widget.sortSelect.value).toBe('price-asc');
+    expect(
+      widget.sortSelect.matches('.bp-ui-select')
+        ? widget.sortSelect.getAttribute('data-value')
+        : widget.sortSelect.value
+    ).toBe('price-asc');
   });
 
   it('reapplies ascending price sort to a new subset', () => {
@@ -456,6 +529,84 @@ describe('bp-listings UMD runtime', () => {
     expect(listingsMapStyles).toContain(
       '.lm-widget.lm-map-hidden .lm-listings-grid {\n  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));'
     );
+  });
+
+  it('adds the shared reset class to the widget root', () => {
+    const { ListingsMap, window } = createEnvironment();
+    const container = window.document.querySelector('#widget');
+
+    ListingsMap.init({
+      container,
+      listings: buildListings(),
+    });
+
+    expect(container.classList.contains('bp-widget-reset')).toBe(true);
+  });
+
+  it('exports search-data helpers that match the documented payload convention', () => {
+    const { ListingsMap } = createEnvironment();
+    const listings = [
+      {
+        id: 'villa',
+        title: 'Villa',
+        searchData: {
+          location: ['Batangas', 'Beachfront'],
+          availability: [{ start: '2030-04-01', end: '2030-04-30' }],
+          fields: {
+            'bp-guests': '4',
+          },
+          filters: {
+            'bp-bedrooms': 2,
+            'bp-view': 'Ocean',
+            'bp-amenities': ['Pool', 'Spa'],
+          },
+        },
+      },
+      {
+        id: 'city',
+        title: 'City',
+        searchData: {
+          location: ['Makati', 'CBD'],
+          availability: [{ start: '2030-04-10', end: '2030-04-20' }],
+          fields: {
+            'bp-guests': '2',
+          },
+          filters: {
+            'bp-bedrooms': 1,
+            'bp-view': 'City',
+            'bp-amenities': ['Gym'],
+          },
+        },
+      },
+    ];
+    const payload = {
+      location: 'bat',
+      checkIn: '2030-04-12',
+      checkOut: '2030-04-18',
+      customFields: {
+        'bp-guests': '4',
+      },
+      filters: {
+        'bp-bedrooms': 2,
+        'bp-view': 'Ocean',
+        'bp-amenities': ['Pool'],
+      },
+    };
+    const config = {
+      fields: [{ key: 'bp-guests', type: 'select' }],
+      filters: [
+        { key: 'bp-bedrooms', type: 'counter' },
+        { key: 'bp-view', type: 'select' },
+        { key: 'bp-amenities', type: 'checkbox' },
+      ],
+    };
+
+    const matcher = ListingsMap.createSearchDataMatcher(config);
+    const results = ListingsMap.filterListingsBySearchData(listings, payload, config);
+
+    expect(matcher(listings[0], payload)).toBe(true);
+    expect(matcher(listings[1], payload)).toBe(false);
+    expect(results.map((listing) => listing.id)).toEqual(['villa']);
   });
 
   it('still works without renderSearchSlot', () => {

@@ -26,6 +26,8 @@ Before releasing:
 - make sure the working tree is clean
 - make sure npm auth is valid with `npm whoami`
 - make sure any repo-specific checks you use have passed
+  - `npm test`
+  - `npm run build:css`
 
 ## Pre-release Checklist
 
@@ -34,6 +36,9 @@ Before releasing:
 3. Confirm there are no uncommitted changes.
 4. Confirm npm auth:
    - `npm whoami`
+5. Run:
+   - `npm test`
+   - `npm run build:css`
 
 ## Standard Release Commands
 
@@ -91,7 +96,9 @@ If the exact version has already been used on npm, the script starts from the ne
 Use this release sequence:
 
 1. Commit the product work.
-2. Run any checks you need for the current change.
+2. Run:
+   - `npm test`
+   - `npm run build:css`
 3. Run the release command:
    - `npm run release -- patch`
    - or `minor`

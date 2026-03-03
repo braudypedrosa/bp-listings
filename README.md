@@ -2,7 +2,7 @@
 
 Airbnb-style listings + map widget built with vanilla JavaScript and CSS.
 
-Current version: **1.0.7**
+Current version: **1.1.0**
 
 ## Overview
 
@@ -115,8 +115,8 @@ When you integrate external search through `renderSearchSlot`, the recommended c
 Important:
 
 - this is a docs/demo convention only
-- `bp-listings` does not parse or enforce `searchData`
-- matching remains consumer-owned
+- `bp-listings` does not parse or enforce `searchData` automatically
+- matching remains consumer-owned, but helper exports are available for the documented convention
 
 ## Config Options
 
@@ -158,7 +158,6 @@ This pattern requires a bundler or dev server that can resolve npm packages and 
 ```js
 import '@braudypedrosa/bp-listings';
 import '@braudypedrosa/bp-listings/styles';
-import '@braudypedrosa/bp-calendar/styles';
 import '@braudypedrosa/bp-search-widget/styles';
 import { BPSearchWidget } from '@braudypedrosa/bp-search-widget';
 
@@ -241,103 +240,10 @@ const filterDefinitions = [
   },
 ];
 
-const fieldTypeMap = new Map(
-  [...fieldDefinitions, ...filterDefinitions].map((field) => [field.key, field.type])
-);
-
-const normalizeString = (value) => {
-  if (value === null || value === undefined) return '';
-  return String(value).trim().toLowerCase();
-};
-
-const toArray = (value) => {
-  if (Array.isArray(value)) return value;
-  if (value === null || value === undefined) return [];
-  return [value];
-};
-
-const normalizeStringArray = (value) =>
-  toArray(value).map((entry) => normalizeString(entry)).filter(Boolean);
-
-const matchesSubstring = (haystackValue, needleValue) => {
-  const needle = normalizeString(needleValue);
-  if (!needle) return true;
-  return normalizeStringArray(haystackValue).some((value) => value.includes(needle));
-};
-
-const matchesExact = (haystackValue, needleValue) => {
-  const needle = normalizeString(needleValue);
-  if (!needle) return true;
-  return normalizeStringArray(haystackValue).some((value) => value === needle);
-};
-
-const matchesAllChoices = (haystackValue, needleValues) => {
-  const selectedValues = normalizeStringArray(needleValues);
-  if (selectedValues.length === 0) return true;
-  const availableValues = new Set(normalizeStringArray(haystackValue));
-  return selectedValues.every((value) => availableValues.has(value));
-};
-
-const matchesCounter = (haystackValue, needleValue) => {
-  const numericNeedle = Number(needleValue);
-  const numericHaystack = Number(haystackValue);
-  if (!Number.isFinite(numericNeedle)) return true;
-  if (!Number.isFinite(numericHaystack)) return false;
-  return numericHaystack >= numericNeedle;
-};
-
-const isValidDateString = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
-
-const matchesAvailability = (availability, checkIn, checkOut) => {
-  if (!Array.isArray(availability) || !isValidDateString(checkIn) || !isValidDateString(checkOut)) {
-    return false;
-  }
-
-  return availability.some((windowRange) => (
-    windowRange &&
-    isValidDateString(windowRange.start) &&
-    isValidDateString(windowRange.end) &&
-    windowRange.start <= checkIn &&
-    windowRange.end >= checkOut
-  ));
-};
-
-const matchValues = (type, listingValue, submittedValue) => {
-  if (type === 'checkbox') return matchesAllChoices(listingValue, submittedValue);
-  if (type === 'select' || type === 'radio') return matchesExact(listingValue, submittedValue);
-  if (type === 'counter') return matchesCounter(listingValue, submittedValue);
-  return matchesSubstring(listingValue, submittedValue);
-};
-
-const matchListing = (listing, payload) => {
-  const searchData = listing.searchData || {};
-  const fieldValues = searchData.fields || {};
-  const filterValues = searchData.filters || {};
-
-  if (!matchesSubstring(searchData.location, payload.location)) {
-    return false;
-  }
-
-  if (payload.checkIn && payload.checkOut) {
-    if (!matchesAvailability(searchData.availability, payload.checkIn, payload.checkOut)) {
-      return false;
-    }
-  }
-
-  for (const [key, value] of Object.entries(payload.customFields || {})) {
-    if (!matchValues(fieldTypeMap.get(key), fieldValues[key], value)) {
-      return false;
-    }
-  }
-
-  for (const [key, value] of Object.entries(payload.filters || {})) {
-    if (!matchValues(fieldTypeMap.get(key), filterValues[key], value)) {
-      return false;
-    }
-  }
-
-  return true;
-};
+const matchListing = ListingsMap.createSearchDataMatcher({
+  fields: fieldDefinitions,
+  filters: filterDefinitions,
+});
 
 const listingsWidget = ListingsMap.init({
   container: '#widget',
@@ -352,7 +258,10 @@ const listingsWidget = ListingsMap.init({
         datepickerPlacement: 'auto',
       },
       onSearch: (payload) => {
-        const filteredListings = allListings.filter((listing) => matchListing(listing, payload));
+        const filteredListings = ListingsMap.filterListingsBySearchData(allListings, payload, {
+          fields: fieldDefinitions,
+          filters: filterDefinitions,
+        });
         widget.setListings(filteredListings);
       },
     });
@@ -377,6 +286,11 @@ Returned widget instance exposes:
 - `toggleMap()`
 - `goToPage(pageNumber)`
 - `destroy()`
+
+Helper exports on `window.ListingsMap` or the package module:
+
+- `createSearchDataMatcher({ fields, filters })`
+- `filterListingsBySearchData(listings, payload, { fields, filters })`
 
 ## Styling and Theming
 
@@ -407,7 +321,7 @@ npm run dev
 ```
 
 The local demo uses Vite only for development so it can resolve `@braudypedrosa/bp-search-widget`,
-`@braudypedrosa/bp-calendar`, and their styles. The published `bp-listings` package format is unchanged.
+`@braudypedrosa/bp-ui-components`, and their styles. The published `bp-listings` package format is unchanged.
 
 ## Notes
 
