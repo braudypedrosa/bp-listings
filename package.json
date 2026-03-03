@@ -44,11 +44,11 @@
     "release:npm": "npm publish"
   },
   "dependencies": {
-    "@braudypedrosa/bp-ui-components": "^0.2.1"
+    "@braudypedrosa/bp-ui-components": "^0.3.0"
   },
   "devDependencies": {
-    "@braudypedrosa/bp-calendar": "^1.0.3",
-    "@braudypedrosa/bp-search-widget": "^1.0.1",
+    "@braudypedrosa/bp-calendar": "^1.0.5",
+    "@braudypedrosa/bp-search-widget": "^1.1.0",
     "jsdom": "^28.1.0",
     "sass-embedded": "^1.97.3",
     "vite": "^7.3.1",
