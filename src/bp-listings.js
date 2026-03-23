@@ -9,7 +9,7 @@ import './bp-listings.scss';
  *   ListingsMap.init({
  *     container: '#my-container',
  *     listings: [...],
- *     mapOptions: { center: [14.55, 121.03], zoom: 12 },
+ *     mapOptions: { center: [14.55, 121.03], zoom: 15 },
  *     currency: '₱',
  *     renderSearchSlot: (containerEl, widget) => {
  *       // Render your own search UI (shortcode, library, etc.) into containerEl
@@ -571,7 +571,7 @@ import './bp-listings.scss';
         currency: "$",
         mapOptions: {
           center: [14.55, 121.03],
-          zoom: 12,
+          zoom: 15,
         },
         tileUrl: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
         tileAttribution:
@@ -580,6 +580,12 @@ import './bp-listings.scss';
         showSort: true,
         showPagination: true,
         pageSize: 12, // explicit values <= 0 disable pagination
+        paginationMode: "pages", // "pages" | "infinite"
+        fullHeightMap: false, // true makes widget fill viewport height
+        minDesktopColumns: 3,
+        maxDesktopColumns: 8,
+        markerFocusZoom: 15,
+        markerFocusCenter: null, // [lat, lng] when you want a fixed center target
         renderSearchSlot: null, // callback: function(containerEl, widget) { ... } — optionally return a cleanup function
         onFavorite: null,
         onListingClick: null,
@@ -594,11 +600,21 @@ import './bp-listings.scss';
     self._mapVisible = true;
     self._sortOrder = "default";
     self._currentPage = 1;
+    self._paginationMode = self._resolvePaginationMode(self.config.paginationMode);
+    self.config.paginationMode = self._paginationMode;
+    self._fullHeightMap = Boolean(self.config.fullHeightMap);
+    self.config.fullHeightMap = self._fullHeightMap;
+    self._visibleCount = 0;
     self._originalListings = self.config.listings.slice();
     self._searchSlot = null;
     self._searchSlotCleanup = null;
     self._isDestroyed = false;
     self._nativeSortChangeHandler = null;
+    self._windowResizeHandler = null;
+    self._infiniteScrollObserver = null;
+    self._infiniteScrollSentinel = null;
+
+    self._resetPaginationState();
 
     self._init();
   }
@@ -621,6 +637,9 @@ import './bp-listings.scss';
     self.container = container;
     container.innerHTML = "";
     container.classList.add("lm-widget");
+    if (self._fullHeightMap) {
+      container.classList.add("lm-widget-full-height");
+    }
 
     // Listings panel
     self.listingsPanel = el("div", "lm-listings-panel");
@@ -646,7 +665,15 @@ import './bp-listings.scss';
     }
 
     self.listingsPanel.appendChild(self.listingsGrid);
+    self._infiniteScrollSentinel = el("div", "lm-infinite-sentinel", {
+      "aria-hidden": "true",
+    });
+    self.listingsPanel.appendChild(self._infiniteScrollSentinel);
     self.listingsPanel.appendChild(self.paginationContainer);
+    self._windowResizeHandler = function () {
+      self._updateDynamicGridColumns();
+    };
+    window.addEventListener("resize", self._windowResizeHandler);
 
     // Map panel
     self.mapPanel = el("div", "lm-map-panel");
@@ -672,6 +699,59 @@ import './bp-listings.scss';
     loadLeaflet(function () {
       self._initMap();
     });
+  };
+
+  ListingsMapWidget.prototype._getListingsPanelWidth = function () {
+    if (this.listingsPanel && this.listingsPanel.clientWidth > 0) {
+      return this.listingsPanel.clientWidth;
+    }
+    if (this.container && this.container.clientWidth > 0) {
+      return this.container.clientWidth;
+    }
+    if (
+      this.listingsPanel &&
+      typeof this.listingsPanel.getBoundingClientRect === "function"
+    ) {
+      var panelWidth = this.listingsPanel.getBoundingClientRect().width;
+      if (panelWidth > 0) {
+        return panelWidth;
+      }
+    }
+    return 1200;
+  };
+
+  ListingsMapWidget.prototype._getTargetGridColumns = function () {
+    var viewportWidth =
+      typeof window !== "undefined" && typeof window.innerWidth === "number"
+        ? window.innerWidth
+        : 1200;
+    var isDesktop = viewportWidth > 960;
+    var panelWidth = this._getListingsPanelWidth();
+    var minCardWidth = isDesktop ? 280 : viewportWidth > 640 ? 260 : 220;
+    var rawColumns = Math.max(1, Math.floor(panelWidth / minCardWidth));
+
+    if (isDesktop) {
+      var minDesktopColumns = Number(this.config.minDesktopColumns);
+      var maxDesktopColumns = Number(this.config.maxDesktopColumns);
+      var safeMinDesktopColumns = Number.isFinite(minDesktopColumns)
+        ? Math.max(1, Math.floor(minDesktopColumns))
+        : 3;
+      var safeMaxDesktopColumns = Number.isFinite(maxDesktopColumns)
+        ? Math.max(safeMinDesktopColumns, Math.floor(maxDesktopColumns))
+        : 8;
+      return Math.max(safeMinDesktopColumns, Math.min(safeMaxDesktopColumns, rawColumns));
+    }
+
+    return Math.max(1, Math.min(2, rawColumns));
+  };
+
+  ListingsMapWidget.prototype._updateDynamicGridColumns = function () {
+    if (!this.listingsGrid) {
+      return;
+    }
+    var columns = this._getTargetGridColumns();
+    this.listingsGrid.style.gridTemplateColumns =
+      "repeat(" + columns + ", minmax(0, 1fr))";
   };
 
   // ==========================================
@@ -756,7 +836,7 @@ import './bp-listings.scss';
 
   ListingsMapWidget.prototype._applySortOrder = function (value) {
     this._sortOrder = value || "default";
-    this._currentPage = 1;
+    this._resetPaginationState();
     this._sortListings();
     this._renderListings();
     this._syncSortControl();
@@ -773,17 +853,102 @@ import './bp-listings.scss';
   // ==========================================
   // Pagination Helpers
   // ==========================================
+  ListingsMapWidget.prototype._resolvePaginationMode = function (value) {
+    return value === "infinite" ? "infinite" : "pages";
+  };
+
+  ListingsMapWidget.prototype._isInfinitePaginationMode = function () {
+    return this._paginationMode === "infinite";
+  };
+
+  ListingsMapWidget.prototype._isFinitePageSize = function () {
+    return Boolean(this.config.pageSize && this.config.pageSize > 0);
+  };
+
+  ListingsMapWidget.prototype._resetPaginationState = function () {
+    this._currentPage = 1;
+    if (this._isInfinitePaginationMode() && this._isFinitePageSize()) {
+      this._visibleCount = this.config.pageSize;
+      return;
+    }
+    this._visibleCount = 0;
+  };
+
+  ListingsMapWidget.prototype._hasMoreInfiniteListings = function () {
+    if (!this._isInfinitePaginationMode() || !this._isFinitePageSize()) {
+      return false;
+    }
+    return this._visibleCount < this.config.listings.length;
+  };
+
+  ListingsMapWidget.prototype._loadMoreInfiniteListings = function () {
+    if (!this._hasMoreInfiniteListings()) {
+      return;
+    }
+
+    this._visibleCount = Math.min(
+      this.config.listings.length,
+      this._visibleCount + this.config.pageSize
+    );
+    this._renderListings();
+  };
+
+  ListingsMapWidget.prototype._updateInfiniteScrollObserver = function () {
+    var self = this;
+
+    self._teardownInfiniteScrollObserver();
+
+    if (
+      !self._infiniteScrollSentinel ||
+      !self._isInfinitePaginationMode() ||
+      !self._isFinitePageSize() ||
+      !self._hasMoreInfiniteListings() ||
+      typeof window.IntersectionObserver !== "function"
+    ) {
+      return;
+    }
+
+    self._infiniteScrollObserver = new window.IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            self._loadMoreInfiniteListings();
+          }
+        });
+      },
+      {
+        root: self.listingsPanel || null,
+        rootMargin: "0px 0px 240px 0px",
+        threshold: 0.01,
+      }
+    );
+
+    self._infiniteScrollObserver.observe(self._infiniteScrollSentinel);
+  };
+
+  ListingsMapWidget.prototype._teardownInfiniteScrollObserver = function () {
+    if (!this._infiniteScrollObserver) {
+      return;
+    }
+    this._infiniteScrollObserver.disconnect();
+    this._infiniteScrollObserver = null;
+  };
+
   ListingsMapWidget.prototype._getPagedListings = function () {
     var self = this;
     var all = self.config.listings;
-    if (!self.config.pageSize || self.config.pageSize <= 0) return all;
+    if (!self._isFinitePageSize()) return all;
+    if (self._isInfinitePaginationMode()) {
+      var visibleCount = self._visibleCount > 0 ? self._visibleCount : self.config.pageSize;
+      return all.slice(0, visibleCount);
+    }
     var start = (self._currentPage - 1) * self.config.pageSize;
     return all.slice(start, start + self.config.pageSize);
   };
 
   ListingsMapWidget.prototype._getTotalPages = function () {
     var self = this;
-    if (!self.config.pageSize || self.config.pageSize <= 0) return 1;
+    if (!self._isFinitePageSize()) return 1;
     return Math.ceil(self.config.listings.length / self.config.pageSize) || 1;
   };
 
@@ -793,7 +958,12 @@ import './bp-listings.scss';
     self.paginationContainer.innerHTML = "";
 
     var totalPages = self._getTotalPages();
-    if (!self.config.showPagination || !self.config.pageSize || self.config.pageSize <= 0 || totalPages <= 1) return;
+    if (
+      !self.config.showPagination ||
+      !self._isFinitePageSize() ||
+      self._isInfinitePaginationMode() ||
+      totalPages <= 1
+    ) return;
 
     var page = self._currentPage;
 
@@ -868,6 +1038,10 @@ import './bp-listings.scss';
       noResults.innerHTML =
         '<div class="lm-no-results-title">No results found</div><div>Try adjusting your search or filters.</div>';
       self.listingsGrid.appendChild(noResults);
+      if (self._infiniteScrollSentinel) {
+        self._infiniteScrollSentinel.style.display = "none";
+      }
+      self._teardownInfiniteScrollObserver();
       self._renderPagination();
       return;
     }
@@ -900,6 +1074,12 @@ import './bp-listings.scss';
 
     // Pagination
     self._renderPagination();
+    self._updateDynamicGridColumns();
+    if (self._infiniteScrollSentinel) {
+      self._infiniteScrollSentinel.style.display =
+        self._isInfinitePaginationMode() && self._isFinitePageSize() ? "" : "none";
+    }
+    self._updateInfiniteScrollObserver();
   };
 
   ListingsMapWidget.prototype._rebuildMarkers = function () {
@@ -956,10 +1136,7 @@ import './bp-listings.scss';
         offset: [0, -5],
       });
 
-      marker.on("click", function () {
-        self._highlightListing(listing.id);
-        self._scrollToCard(listing.id);
-      });
+      self._bindMarkerInteractions(marker, listing);
 
       marker._listingId = listing.id;
       self.markers.push(marker);
@@ -1021,10 +1198,7 @@ import './bp-listings.scss';
           offset: [0, -5],
         });
 
-        marker.on("click", function () {
-          self._highlightListing(listing.id);
-          self._scrollToCard(listing.id);
-        });
+        self._bindMarkerInteractions(marker, listing);
 
         // Store reference
         marker._listingId = listing.id;
@@ -1032,18 +1206,14 @@ import './bp-listings.scss';
       }
     });
 
-    // Fit bounds if we have markers
-    if (self.markers.length > 0) {
-      var group = L.featureGroup(self.markers);
-      self.map.fitBounds(group.getBounds().pad(0.1));
-    }
+    self._refreshMapViewport();
 
     // Recompute map size after layout (fixes blank map when container height is from flex/min-height)
     setTimeout(function () {
-      if (self.map) self.map.invalidateSize();
+      self._refreshMapViewport();
     }, 100);
     setTimeout(function () {
-      if (self.map) self.map.invalidateSize();
+      self._refreshMapViewport();
     }, 350);
 
     // Map move event
@@ -1062,21 +1232,15 @@ import './bp-listings.scss';
     }
   };
 
-  ListingsMapWidget.prototype._highlightMarker = function (id) {
-    this.markers.forEach(function (m) {
-      if (m._listingId === id) {
-        var el = m.getElement();
-        if (el) {
-          var pill = el.querySelector(".lm-price-marker");
-          if (pill) pill.classList.add("lm-price-marker-active");
-        }
-      }
-    });
-  };
-
   ListingsMapWidget.prototype._unhighlightMarker = function (id) {
     this.markers.forEach(function (m) {
       if (m._listingId === id) {
+        if (typeof m.closePopup === "function") {
+          m.closePopup();
+        }
+        if (typeof m.setZIndexOffset === "function") {
+          m.setZIndexOffset(0);
+        }
         var el = m.getElement();
         if (el) {
           var pill = el.querySelector(".lm-price-marker");
@@ -1105,19 +1269,163 @@ import './bp-listings.scss';
     });
   };
 
+  ListingsMapWidget.prototype._bindMarkerInteractions = function (marker, listing) {
+    var self = this;
+
+    marker.on("click", function () {
+      self._centerAndZoomToMarker(marker);
+      self._highlightListing(listing.id);
+      self._scrollToCard(listing.id);
+    });
+
+    marker.on("mouseover", function () {
+      self._focusMarkerOnHover(marker, listing.id);
+    });
+
+    marker.on("mouseout", function () {
+      self._resetMarkerHoverState(marker);
+    });
+  };
+
+  ListingsMapWidget.prototype._focusMarkerOnHover = function (marker, listingId) {
+    if (!marker) {
+      return;
+    }
+
+    if (typeof marker.setZIndexOffset === "function") {
+      marker.setZIndexOffset(1000);
+    }
+
+    if (typeof marker.openPopup === "function") {
+      marker.openPopup();
+    }
+
+    this._highlightListing(listingId);
+  };
+
+  ListingsMapWidget.prototype._resetMarkerHoverState = function (marker) {
+    if (!marker) {
+      return;
+    }
+
+    if (typeof marker.setZIndexOffset === "function") {
+      marker.setZIndexOffset(0);
+    }
+  };
+
+  ListingsMapWidget.prototype._highlightMarker = function (id) {
+    var self = this;
+    this.markers.forEach(function (m) {
+      if (m._listingId === id) {
+        self._focusMarkerOnHover(m, id);
+        var el = m.getElement();
+        if (el) {
+          var pill = el.querySelector(".lm-price-marker");
+          if (pill) pill.classList.add("lm-price-marker-active");
+        }
+      }
+    });
+  };
+
+  ListingsMapWidget.prototype._centerAndZoomToMarker = function (marker) {
+    var self = this;
+    if (!self.map || !marker || typeof marker.getLatLng !== "function") {
+      return;
+    }
+
+    var markerLatLng = marker.getLatLng();
+    var configuredCenter = self.config.markerFocusCenter;
+    var hasFixedCenter = Array.isArray(configuredCenter)
+      && configuredCenter.length >= 2
+      && typeof configuredCenter[0] === "number"
+      && typeof configuredCenter[1] === "number"
+      && !Number.isNaN(configuredCenter[0])
+      && !Number.isNaN(configuredCenter[1]);
+
+    var targetCenter = hasFixedCenter
+      ? { lat: configuredCenter[0], lng: configuredCenter[1] }
+      : markerLatLng;
+
+    var configuredZoom = Number(self.config.markerFocusZoom);
+    var defaultZoom = typeof self.map.getZoom === "function"
+      ? self.map.getZoom()
+      : self.config.mapOptions.zoom;
+    var targetZoom = Number.isFinite(configuredZoom)
+      ? Math.max(1, Math.min(19, configuredZoom))
+      : defaultZoom;
+
+    self.map.setView(targetCenter, targetZoom, { animate: true });
+  };
+
+  ListingsMapWidget.prototype._setInfiniteVisiblePage = function (pageNumber) {
+    var total = this.config.listings.length;
+    var clampedPage = pageNumber < 1 ? 1 : pageNumber;
+    var targetVisibleCount = clampedPage * this.config.pageSize;
+    this._visibleCount = Math.min(total, targetVisibleCount);
+  };
+
+  ListingsMapWidget.prototype._setPage = function (pageNumber) {
+    this._currentPage = pageNumber;
+    if (this._isInfinitePaginationMode() && this._isFinitePageSize()) {
+      this._setInfiniteVisiblePage(pageNumber);
+    }
+  };
+
+  ListingsMapWidget.prototype._syncPaginationStateFromList = function () {
+    if (!this._isInfinitePaginationMode() || !this._isFinitePageSize()) {
+      return;
+    }
+    if (this._visibleCount <= 0) {
+      this._visibleCount = this.config.pageSize;
+    }
+    if (this._visibleCount > this.config.listings.length) {
+      this._visibleCount = this.config.listings.length;
+    }
+  };
+
+  ListingsMapWidget.prototype._scrollToListingsTop = function () {
+    if (this.listingsPanel) {
+      this.listingsPanel.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  ListingsMapWidget.prototype._renderPageAndScroll = function () {
+    this._renderListings();
+    this._scrollToListingsTop();
+  };
+
+  ListingsMapWidget.prototype._ensurePaginationState = function () {
+    if (this._isInfinitePaginationMode()) {
+      this._syncPaginationStateFromList();
+    }
+  };
+
   ListingsMapWidget.prototype._scrollToCard = function (id) {
     var self = this;
-    // If pagination is active, check if listing is on current page
-    if (self.config.pageSize && self.config.pageSize > 0) {
+    // If pagination is active, ensure target card is rendered first.
+    if (self._isFinitePageSize()) {
       var idx = -1;
       for (var i = 0; i < self.config.listings.length; i++) {
         if (self.config.listings[i].id === id) { idx = i; break; }
       }
       if (idx >= 0) {
-        var targetPage = Math.floor(idx / self.config.pageSize) + 1;
-        if (targetPage !== self._currentPage) {
-          self._currentPage = targetPage;
-          self._renderListings();
+        if (self._isInfinitePaginationMode()) {
+          var targetVisibleCount =
+            Math.ceil((idx + 1) / self.config.pageSize) * self.config.pageSize;
+          var nextVisibleCount = Math.min(
+            self.config.listings.length,
+            targetVisibleCount
+          );
+          if (nextVisibleCount > self._visibleCount) {
+            self._visibleCount = nextVisibleCount;
+            self._renderListings();
+          }
+        } else {
+          var targetPage = Math.floor(idx / self.config.pageSize) + 1;
+          if (targetPage !== self._currentPage) {
+            self._currentPage = targetPage;
+            self._renderListings();
+          }
         }
       }
     }
@@ -1153,9 +1461,29 @@ import './bp-listings.scss';
     if (this.map) {
       var self = this;
       setTimeout(function () {
-        self.map.invalidateSize();
+        self._refreshMapViewport();
       }, 100);
     }
+  };
+
+  ListingsMapWidget.prototype._refreshMapViewport = function () {
+    var self = this;
+    if (!self.map) {
+      return;
+    }
+
+    self.map.invalidateSize();
+
+    if (self.markers && self.markers.length > 0) {
+      var L = window.L;
+      var group = L.featureGroup(self.markers);
+      self.map.fitBounds(group.getBounds().pad(0.1));
+      return;
+    }
+
+    self.map.setView(self.config.mapOptions.center, self.config.mapOptions.zoom, {
+      animate: false,
+    });
   };
 
   // ==========================================
@@ -1166,9 +1494,10 @@ import './bp-listings.scss';
    */
   ListingsMapWidget.prototype.setListings = function (listings) {
     this._originalListings = listings.slice();
-    this._currentPage = 1;
+    this._resetPaginationState();
     this.config.listings = listings.slice();
     this._sortListings();
+    this._ensurePaginationState();
     this._syncSortControl();
     this._renderListings();
     this._rebuildMarkers();
@@ -1201,10 +1530,15 @@ import './bp-listings.scss';
       self.container.classList.add("lm-map-hidden");
     }
     self._updateToggleLabel();
+    self._updateDynamicGridColumns();
     // Invalidate map size after CSS transition
     if (self.map && self._mapVisible) {
+      self._refreshMapViewport();
       setTimeout(function () {
-        self.map.invalidateSize();
+        self._refreshMapViewport();
+      }, 100);
+      setTimeout(function () {
+        self._refreshMapViewport();
       }, 350);
     }
   };
@@ -1217,12 +1551,8 @@ import './bp-listings.scss';
     var total = self._getTotalPages();
     if (n < 1) n = 1;
     if (n > total) n = total;
-    self._currentPage = n;
-    self._renderListings();
-    // Scroll listings panel to top
-    if (self.listingsPanel) {
-      self.listingsPanel.scrollTo({ top: 0, behavior: "smooth" });
-    }
+    self._setPage(n);
+    self._renderPageAndScroll();
   };
 
   /**
@@ -1247,12 +1577,18 @@ import './bp-listings.scss';
       this.sortSelect.removeEventListener("change", this._nativeSortChangeHandler);
       this._nativeSortChangeHandler = null;
     }
+    if (this._windowResizeHandler) {
+      window.removeEventListener("resize", this._windowResizeHandler);
+      this._windowResizeHandler = null;
+    }
+    this._teardownInfiniteScrollObserver();
     if (this.container) {
       this.container.innerHTML = "";
       this.container.classList.remove("lm-widget");
     }
     this._searchSlot = null;
     this.sortSelect = null;
+    this._infiniteScrollSentinel = null;
   };
 
 

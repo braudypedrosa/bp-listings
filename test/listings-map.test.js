@@ -89,6 +89,7 @@ function buildLeafletStub(window) {
         latlng,
         options,
         listeners: {},
+        zIndexOffset: 0,
         addTo(map) {
           this.map = map;
           const element = window.document.createElement('div');
@@ -112,6 +113,12 @@ function buildLeafletStub(window) {
         },
         openPopup() {
           this.popupOpened = true;
+        },
+        closePopup() {
+          this.popupOpened = false;
+        },
+        setZIndexOffset(offset) {
+          this.zIndexOffset = offset;
         },
       };
     },
@@ -138,8 +145,37 @@ function createEnvironment() {
   });
   const { window } = dom;
   const { L, mapInstances } = buildLeafletStub(window);
+  const observers = [];
+
+  class IntersectionObserverStub {
+    constructor(callback) {
+      this.callback = callback;
+      this.observed = [];
+      this.disconnected = false;
+      observers.push(this);
+    }
+
+    observe(target) {
+      this.observed.push(target);
+    }
+
+    disconnect() {
+      this.disconnected = true;
+      this.observed = [];
+    }
+
+    trigger(isIntersecting = true) {
+      this.callback(
+        this.observed.map((target) => ({
+          target,
+          isIntersecting,
+        }))
+      );
+    }
+  }
 
   window.L = L;
+  window.IntersectionObserver = IntersectionObserverStub;
   window.Element.prototype.scrollIntoView = () => {};
   window.HTMLElement.prototype.scrollTo = () => {};
   window.eval(listingsMapSource);
@@ -149,6 +185,7 @@ function createEnvironment() {
     window,
     ListingsMap: window.ListingsMap,
     mapInstances,
+    observers,
   };
 }
 
@@ -336,6 +373,65 @@ describe('bp-listings UMD runtime', () => {
     expect(getRenderedTitles(container)).toHaveLength(12);
   });
 
+  it('defaults pagination mode to page buttons', () => {
+    const { ListingsMap, window } = createEnvironment();
+    const widget = ListingsMap.init({
+      container: window.document.querySelector('#widget'),
+      listings: buildManyListings(13),
+    });
+
+    expect(widget.config.paginationMode).toBe('pages');
+    expect(widget._paginationMode).toBe('pages');
+  });
+
+  it('applies viewport-height mode when fullHeightMap is enabled', () => {
+    const { ListingsMap, window } = createEnvironment();
+    const container = window.document.querySelector('#widget');
+    const widget = ListingsMap.init({
+      container,
+      listings: buildManyListings(5),
+      fullHeightMap: true,
+    });
+
+    expect(widget.config.fullHeightMap).toBe(true);
+    expect(container.classList.contains('lm-widget-full-height')).toBe(true);
+  });
+
+  it('supports infinite pagination mode with pageSize as chunk size', () => {
+    const { ListingsMap, window } = createEnvironment();
+    const container = window.document.querySelector('#widget');
+    const widget = ListingsMap.init({
+      container,
+      listings: buildManyListings(13),
+      pageSize: 5,
+      paginationMode: 'infinite',
+    });
+
+    expect(widget.config.paginationMode).toBe('infinite');
+    expect(getRenderedTitles(container)).toHaveLength(5);
+    expect(container.querySelector('.lm-pagination').innerHTML).toBe('');
+  });
+
+  it('loads more cards when the infinite-scroll sentinel intersects', () => {
+    const { ListingsMap, window, observers } = createEnvironment();
+    const container = window.document.querySelector('#widget');
+    ListingsMap.init({
+      container,
+      listings: buildManyListings(13),
+      pageSize: 5,
+      paginationMode: 'infinite',
+    });
+
+    expect(getRenderedTitles(container)).toHaveLength(5);
+    expect(observers).toHaveLength(1);
+
+    observers[0].trigger(true);
+    expect(getRenderedTitles(container)).toHaveLength(10);
+
+    observers[1].trigger(true);
+    expect(getRenderedTitles(container)).toHaveLength(13);
+  });
+
   it('disables pagination when pageSize is explicitly 0', () => {
     const { ListingsMap, window } = createEnvironment();
     const container = window.document.querySelector('#widget');
@@ -439,6 +535,42 @@ describe('bp-listings UMD runtime', () => {
     expect(getRenderedTitles(container)).toEqual(['Garden Cabin']);
   });
 
+  it('resets the infinite visible chunk on setListings while preserving sort', () => {
+    const { ListingsMap, window } = createEnvironment();
+    const container = window.document.querySelector('#widget');
+    const widget = ListingsMap.init({
+      container,
+      listings: buildManyListings(13),
+      pageSize: 4,
+      paginationMode: 'infinite',
+    });
+
+    setSort(widget, window, 'price-desc');
+    widget.goToPage(2);
+    expect(getRenderedTitles(container)).toHaveLength(8);
+
+    widget.setListings(buildManyListings(10));
+    expect(widget._sortOrder).toBe('price-desc');
+    expect(getRenderedTitles(container)).toHaveLength(4);
+  });
+
+  it('resets infinite visible chunk after sort changes', () => {
+    const { ListingsMap, window } = createEnvironment();
+    const container = window.document.querySelector('#widget');
+    const widget = ListingsMap.init({
+      container,
+      listings: buildManyListings(13),
+      pageSize: 4,
+      paginationMode: 'infinite',
+    });
+
+    widget.goToPage(2);
+    expect(getRenderedTitles(container)).toHaveLength(8);
+
+    setSort(widget, window, 'price-asc');
+    expect(getRenderedTitles(container)).toHaveLength(4);
+  });
+
   it('rebuilds markers from the new subset after setListings', () => {
     const { ListingsMap, window, mapInstances } = createEnvironment();
     const widget = ListingsMap.init({
@@ -454,6 +586,79 @@ describe('bp-listings UMD runtime', () => {
     expect(map.removedLayers).toHaveLength(4);
     expect(widget.markers).toHaveLength(2);
     expect(widget.markers.map((marker) => marker._listingId)).toEqual(['listing-3', 'listing-1']);
+  });
+
+  it('uses fixed marker focus zoom and center on marker click', () => {
+    const { ListingsMap, window, mapInstances } = createEnvironment();
+    const widget = ListingsMap.init({
+      container: window.document.querySelector('#widget'),
+      listings: buildListings(),
+      pageSize: 0,
+      markerFocusZoom: 16,
+      markerFocusCenter: [14.42, 121.01],
+    });
+    const map = mapInstances[0];
+    const marker = widget.markers[1];
+
+    expect(map.zoom).toBe(15);
+    marker.listeners.click();
+
+    expect(map.center).toEqual({ lat: 14.42, lng: 121.01 });
+    expect(map.zoom).toBe(16);
+  });
+
+  it('defaults marker focus center to the clicked listing coordinates', () => {
+    const { ListingsMap, window, mapInstances } = createEnvironment();
+    const widget = ListingsMap.init({
+      container: window.document.querySelector('#widget'),
+      listings: buildListings(),
+      pageSize: 0,
+      markerFocusZoom: 15,
+    });
+    const map = mapInstances[0];
+    const marker = widget.markers[1];
+
+    marker.listeners.click();
+
+    expect(map.center).toEqual({ lat: marker.latlng[0], lng: marker.latlng[1] });
+    expect(map.zoom).toBe(15);
+  });
+
+  it('brings marker to front and opens popup on hover', () => {
+    const { ListingsMap, window } = createEnvironment();
+    const widget = ListingsMap.init({
+      container: window.document.querySelector('#widget'),
+      listings: buildListings(),
+      pageSize: 0,
+    });
+    const marker = widget.markers[0];
+
+    marker.listeners.mouseover();
+    expect(marker.zIndexOffset).toBe(1000);
+    expect(marker.popupOpened).toBe(true);
+
+    marker.listeners.mouseout();
+    expect(marker.zIndexOffset).toBe(0);
+  });
+
+  it('brings marker to front and opens popup when hovering a listing card', () => {
+    const { ListingsMap, window } = createEnvironment();
+    const widget = ListingsMap.init({
+      container: window.document.querySelector('#widget'),
+      listings: buildListings(),
+      pageSize: 0,
+    });
+
+    const firstCard = widget.cards[0].el;
+    const firstMarker = widget.markers[0];
+
+    firstCard.dispatchEvent(new window.Event('mouseenter', { bubbles: true }));
+    expect(firstMarker.zIndexOffset).toBe(1000);
+    expect(firstMarker.popupOpened).toBe(true);
+
+    firstCard.dispatchEvent(new window.Event('mouseleave', { bubbles: true }));
+    expect(firstMarker.zIndexOffset).toBe(0);
+    expect(firstMarker.popupOpened).toBe(false);
   });
 
   it('includes rating, subtitle, details, and dates in the map popup card', () => {
@@ -490,16 +695,94 @@ describe('bp-listings UMD runtime', () => {
     expect(getRenderedTitles(container)).toHaveLength(12);
   });
 
-  it('defaults to fixed three-column grid mode on desktop', () => {
+  it('expands rendered cards in infinite mode before scrolling to a marker-linked card', () => {
+    const { ListingsMap, window } = createEnvironment();
+    const container = window.document.querySelector('#widget');
+    const widget = ListingsMap.init({
+      container,
+      listings: buildManyListings(13),
+      pageSize: 3,
+      paginationMode: 'infinite',
+    });
+
+    expect(getRenderedTitles(container)).toHaveLength(3);
+
+    widget.panToListing('listing-7');
+
+    expect(getRenderedTitles(container)).toHaveLength(9);
+    expect(getRenderedTitles(container)).toContain('Listing 7');
+  });
+
+  it('uses dynamic desktop grid columns between three and eight', () => {
     const { ListingsMap, window } = createEnvironment();
     const container = window.document.querySelector('#widget');
 
-    ListingsMap.init({
+    window.innerWidth = 1366;
+    const widget = ListingsMap.init({
       container,
       listings: buildListings(),
     });
 
-    expect(listingsMapStyles).toContain('grid-template-columns: repeat(3, minmax(0, 1fr));');
+    const initialDesktopColumns = Number(
+      widget.listingsGrid.style.gridTemplateColumns.match(/repeat\((\d+),/)?.[1] || 0
+    );
+    expect(initialDesktopColumns).toBeGreaterThanOrEqual(3);
+    expect(initialDesktopColumns).toBeLessThanOrEqual(8);
+
+    Object.defineProperty(widget.listingsPanel, 'clientWidth', {
+      value: 2600,
+      configurable: true,
+    });
+    widget._updateDynamicGridColumns();
+    expect(widget.listingsGrid.style.gridTemplateColumns).toContain('repeat(8, minmax(0, 1fr))');
+  });
+
+  it('allows custom desktop grid min and max columns via config', () => {
+    const { ListingsMap, window } = createEnvironment();
+    const container = window.document.querySelector('#widget');
+    window.innerWidth = 1600;
+
+    const widget = ListingsMap.init({
+      container,
+      listings: buildManyListings(12),
+      minDesktopColumns: 4,
+      maxDesktopColumns: 6,
+    });
+
+    Object.defineProperty(widget.listingsPanel, 'clientWidth', {
+      value: 900,
+      configurable: true,
+    });
+    widget._updateDynamicGridColumns();
+    expect(widget.listingsGrid.style.gridTemplateColumns).toContain('repeat(4, minmax(0, 1fr))');
+
+    Object.defineProperty(widget.listingsPanel, 'clientWidth', {
+      value: 3000,
+      configurable: true,
+    });
+    widget._updateDynamicGridColumns();
+    expect(widget.listingsGrid.style.gridTemplateColumns).toContain('repeat(6, minmax(0, 1fr))');
+  });
+
+  it('auto-adjusts grid columns on lower screens', () => {
+    const { ListingsMap, window } = createEnvironment();
+    const container = window.document.querySelector('#widget');
+    window.innerWidth = 768;
+
+    const widget = ListingsMap.init({
+      container,
+      listings: buildListings(),
+    });
+
+    expect(widget.listingsGrid.style.gridTemplateColumns).toContain('repeat(2, minmax(0, 1fr))');
+
+    window.innerWidth = 480;
+    Object.defineProperty(widget.listingsPanel, 'clientWidth', {
+      value: 320,
+      configurable: true,
+    });
+    widget._updateDynamicGridColumns();
+    expect(widget.listingsGrid.style.gridTemplateColumns).toContain('repeat(1, minmax(0, 1fr))');
   });
 
   it('does not add the legacy shared reset class to the widget root', () => {

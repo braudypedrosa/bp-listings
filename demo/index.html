@@ -30,9 +30,9 @@
       }
 
       .demo-shell {
-        width: min(1200px, calc(100vw - 32px));
-        margin: 0 auto;
-        padding: 64px 0 80px;
+        width: 100%;
+        margin: 0;
+        padding: 48px 16px 56px;
       }
 
       .demo-kicker {
@@ -132,8 +132,8 @@
 
       @media (max-width: 768px) {
         .demo-shell {
-          width: min(100%, calc(100vw - 24px));
-          padding: 40px 0 56px;
+          width: 100%;
+          padding: 28px 12px 40px;
         }
 
         .demo-copy {
@@ -159,10 +159,16 @@
       </p>
       <div class="demo-actions">
         <p class="demo-note">
-          The map starts collapsed so the external search bar has room. Use the built-in map toggle
-          to inspect marker updates.
+          Uses exactly 30 demo listings so you can validate infinite-scroll behavior with real pagination depth.
         </p>
-        <button id="reset-listings" class="demo-action-btn" type="button">Reset listings</button>
+        <div style="display: inline-flex; gap: 8px; align-items: center;">
+          <label for="pagination-mode" style="font-size: 14px; color: #525252;">Pagination:</label>
+          <select id="pagination-mode" class="demo-action-btn" style="background: #fff; color: #111; border-color: #d4d4d4;">
+            <option value="pages">Pages</option>
+            <option value="infinite" selected>Infinite scroll</option>
+          </select>
+          <button id="reset-listings" class="demo-action-btn" type="button">Reset listings</button>
+        </div>
       </div>
       <div id="widget-demo"></div>
       <section class="demo-log">
@@ -180,6 +186,7 @@
 
       const output = document.querySelector('#demo-output');
       const resetButton = document.querySelector('#reset-listings');
+      const paginationModeSelect = document.querySelector('#pagination-mode');
       const { BPSearchWidget } = window;
 
       const writeOutput = (label, payload) => {
@@ -227,7 +234,7 @@
         filters: filterDefinitions,
       });
 
-      const allListings = [
+      const seedListings = [
         {
           id: 'villa-ocean',
           title: 'Ocean-view villa in Batangas',
@@ -351,60 +358,118 @@
         },
       ];
 
-      const widget = window.ListingsMap.init({
-        container: '#widget-demo',
-        currency: '₱',
-        mapOptions: { center: [14.33, 121.0], zoom: 9 },
-        listings: allListings,
-        renderSearchSlot: (container, listingsWidget) => {
-          const searchWidget = new BPSearchWidget(container, {
-            fields: fieldDefinitions,
-            filters: filterDefinitions,
-            calendarOptions: {
-              startDate: new Date('2030-03-01T00:00:00'),
-              monthsToShow: 2,
-              datepickerPlacement: 'auto',
+      const buildDummyListings = (count) => {
+        return Array.from({ length: count }, (_, index) => {
+          const number = index + 1;
+          return {
+            id: `demo-dummy-${number}`,
+            title: `Demo listing ${number}`,
+            subtitle: `Entire stay · ${1 + (number % 4)} bedrooms`,
+            details: `${2 + (number % 6)} guests · ${(number % 3) + 1} baths`,
+            dates: 'Always available in demo',
+            price: 7000 + (number * 250),
+            pricePeriod: 'for 3 nights',
+            lat: 14.2 + (index * 0.02),
+            lng: 120.9 + (index * 0.02),
+            rating: 4.5 + ((number % 5) * 0.1),
+            reviewCount: 20 + number,
+            images: [
+              'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80',
+            ],
+            searchData: {
+              location: ['Demo City', 'Expansion Set'],
+              availability: [{ start: '2030-01-01', end: '2031-12-31' }],
+              fields: {
+                'bp-guests': String([2, 4, 6][index % 3]),
+              },
+              filters: {
+                'bp-bedrooms': 1 + (index % 5),
+                'bp-view': ['Ocean', 'Garden', 'City'][index % 3],
+                'bp-amenities': ['Pool'],
+              },
             },
-            onSearch: (payload) => {
-              const filtered = allListings.filter((listing) => matchListing(listing, payload));
-              listingsWidget.setListings(filtered);
-              writeOutput('search', {
-                payload,
-                resultIds: filtered.map((listing) => listing.id),
-              });
-            },
-            onFilterClick: (payload) => {
-              writeOutput('filter-click', payload);
-            },
-          });
-
-          window.demoSearchWidget = searchWidget;
-
-          return () => {
-            searchWidget.destroy();
           };
-        },
-        onFavorite: (listing, isFavorited) => {
-          writeOutput('favorite', { id: listing.id, isFavorited });
-        },
-        onListingClick: (listing) => {
-          writeOutput('listing-click', { id: listing.id, title: listing.title });
-        },
-        onMapMoveEnd: (payload) => {
-          writeOutput('map-move', payload);
-        },
-      });
+        });
+      };
 
-      widget.toggleMap();
+      const allListings = buildDummyListings(30);
+
+      let widget = null;
+
+      const mountWidget = (paginationMode) => {
+        if (widget) {
+          widget.destroy();
+        }
+
+        widget = window.ListingsMap.init({
+          container: '#widget-demo',
+          currency: '₱',
+          mapOptions: { center: [14.33, 121.0], zoom: 9 },
+          fullHeightMap: true,
+          listings: allListings,
+          pageSize: 9,
+          paginationMode,
+          renderSearchSlot: (container, listingsWidget) => {
+            const searchWidget = new BPSearchWidget(container, {
+              fields: fieldDefinitions,
+              filters: filterDefinitions,
+              calendarOptions: {
+                startDate: new Date('2030-03-01T00:00:00'),
+                monthsToShow: 2,
+                datepickerPlacement: 'auto',
+              },
+              onSearch: (payload) => {
+                const filtered = allListings.filter((listing) => matchListing(listing, payload));
+                listingsWidget.setListings(filtered);
+                writeOutput('search', {
+                  payload,
+                  resultIds: filtered.map((listing) => listing.id),
+                });
+              },
+              onFilterClick: (payload) => {
+                writeOutput('filter-click', payload);
+              },
+            });
+
+            window.demoSearchWidget = searchWidget;
+
+            return () => {
+              searchWidget.destroy();
+            };
+          },
+          onFavorite: (listing, isFavorited) => {
+            writeOutput('favorite', { id: listing.id, isFavorited });
+          },
+          onListingClick: (listing) => {
+            writeOutput('listing-click', { id: listing.id, title: listing.title });
+          },
+          onMapMoveEnd: (payload) => {
+            writeOutput('map-move', payload);
+          },
+        });
+
+        widget.toggleMap();
+        window.demoWidget = widget;
+      };
+
+      mountWidget(paginationModeSelect.value);
+
+      paginationModeSelect.addEventListener('change', (event) => {
+        const nextMode = event.target.value === 'infinite' ? 'infinite' : 'pages';
+        mountWidget(nextMode);
+        writeOutput('mode-change', {
+          paginationMode: nextMode,
+          pageSize: 9,
+        });
+      });
 
       resetButton.addEventListener('click', () => {
         widget.setListings(allListings);
         writeOutput('reset', {
           resultIds: allListings.map((listing) => listing.id),
+          total: allListings.length,
         });
       });
-
-      window.demoWidget = widget;
     </script>
   </body>
 </html>

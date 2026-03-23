@@ -61,7 +61,6 @@
 
   .lm-listings-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 24px;
     align-items: start;
     min-width: 0;
@@ -193,10 +192,6 @@
     max-width: 100%;
   }
 
-  &.lm-map-hidden .lm-listings-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
   .lm-pagination {
     display: flex;
     align-items: center;
@@ -207,6 +202,11 @@
     &:empty {
       display: none;
     }
+  }
+
+  .lm-infinite-sentinel {
+    width: 100%;
+    height: 1px;
   }
 
   .lm-pagination-btn {
@@ -815,6 +815,13 @@
   }
 }
 
+.lm-widget.lm-widget-full-height {
+  height: 100vh;
+  min-height: 100vh;
+  height: 100dvh;
+  min-height: 100dvh;
+}
+
 @supports not (aspect-ratio: 1 / 1) {
   .lm-widget .lm-carousel {
     height: 0;
@@ -847,7 +854,6 @@
     }
 
     .lm-listings-grid {
-      grid-template-columns: repeat(2, 1fr);
       gap: 16px;
     }
 
@@ -856,10 +862,6 @@
       min-height: 45vh;
       border-left: none;
       border-top: 1px solid var(--lm-color-border);
-    }
-
-    &.lm-map-hidden .lm-listings-grid {
-      grid-template-columns: repeat(2, 1fr);
     }
 
   }
@@ -890,12 +892,7 @@
     }
 
     .lm-listings-grid {
-      grid-template-columns: 1fr;
       gap: 20px;
-    }
-
-    &.lm-map-hidden .lm-listings-grid {
-      grid-template-columns: 1fr;
     }
 
     .lm-map-panel {

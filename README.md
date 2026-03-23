@@ -9,6 +9,7 @@ A framework-agnostic listings grid and interactive map widget for vacation renta
 - listings grid and interactive map in one widget
 - built-in sort control with `default`, `price-asc`, and `price-desc`
 - optional pagination with configurable page size
+- optional infinite-scroll pagination mode
 - map toggle and fullscreen map action
 - card-to-marker and marker-to-card highlighting
 - favorite and listing-click callbacks
@@ -85,19 +86,40 @@ Each listing can include:
 - `listings: Array<Listing>` default `[]`
 - `currency: string` default `'$'`
 - `mapOptions.center: [number, number]` default `[14.55, 121.03]`
-- `mapOptions.zoom: number` default `12`
+- `mapOptions.zoom: number` default `15`
 - `tileUrl: string` defaults to OpenStreetMap
 - `tileAttribution: string`
 - `showMapToggle: boolean` default `true`
 - `showSort: boolean` default `true`
 - `showPagination: boolean` default `true`
 - `pageSize: number` default `12`
+- `paginationMode: 'pages' | 'infinite'` default `'pages'`
+- `fullHeightMap: boolean` default `false`
+- `minDesktopColumns: number` default `3`
+- `maxDesktopColumns: number` default `8`
+- `markerFocusZoom: number` default `15`
+- `markerFocusCenter: [number, number] | null` default `null`
 - `renderSearchSlot: (containerEl, widget) => void | (() => void)`
 - `onFavorite: (listing, isFavorited) => void`
 - `onListingClick: (listing) => void`
 - `onMapMoveEnd: ({ north, south, east, west, center, zoom }) => void`
 
 Explicit `pageSize: 0` or any non-positive value disables pagination.
+
+When `paginationMode` is `'infinite'`, `pageSize` becomes the load chunk size.
+In this mode, numbered pagination UI is hidden and cards are progressively revealed
+as the listings panel scroll reaches the sentinel.
+
+When `fullHeightMap` is `true`, the widget root uses viewport height (`100dvh`
+with `100vh` fallback), so the map/list panel stays full-height without needing
+custom container CSS.
+
+Desktop grid columns are dynamic and clamped using `minDesktopColumns` and
+`maxDesktopColumns`. Lower screens still auto-adjust down based on available width.
+
+When a marker is clicked, the map focuses using a fixed zoom value from
+`markerFocusZoom`. By default it centers on the clicked marker coordinates; set
+`markerFocusCenter` to force a fixed center target.
 
 ## Instance API
 
@@ -108,6 +130,9 @@ The widget returned by `window.ListingsMap.init(...)` exposes:
 - `toggleMap()`
 - `goToPage(pageNumber)`
 - `destroy()`
+
+In `'infinite'` mode, `goToPage(n)` is still supported and reveals listings up to
+`n * pageSize`, which is useful when you need programmatic jumps.
 
 ## Search Slot Integration
 
