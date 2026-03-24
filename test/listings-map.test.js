@@ -411,6 +411,71 @@ describe('bp-listings UMD runtime', () => {
     expect(container.classList.contains('lm-map-sticky')).toBe(true);
   });
 
+  it('uses viewport as IntersectionObserver root when stickyMap + infinite are combined', () => {
+    const { ListingsMap, window, observers } = createEnvironment();
+    const container = window.document.querySelector('#widget');
+    const widget = ListingsMap.init({
+      container,
+      listings: buildManyListings(20),
+      pageSize: 5,
+      paginationMode: 'infinite',
+      stickyMap: true,
+    });
+
+    expect(observers.length).toBeGreaterThanOrEqual(1);
+
+    const lastObs = observers[observers.length - 1];
+    expect(lastObs.observed.length).toBe(1);
+
+    expect(getRenderedTitles(container)).toHaveLength(5);
+
+    lastObs.trigger(true);
+    expect(getRenderedTitles(container)).toHaveLength(10);
+
+    const nextObs = observers[observers.length - 1];
+    nextObs.trigger(true);
+    expect(getRenderedTitles(container)).toHaveLength(15);
+
+    widget.destroy();
+  });
+
+  it('attaches scroll listener to window when stickyMap is on for back-to-top', () => {
+    const { ListingsMap, window } = createEnvironment();
+    const container = window.document.querySelector('#widget');
+    const widget = ListingsMap.init({
+      container,
+      listings: buildManyListings(20),
+      pageSize: 0,
+      stickyMap: true,
+    });
+
+    expect(widget._scrollListenerTarget).toBe(window);
+    expect(widget.backToTopBtn.classList.contains('lm-back-to-top-visible')).toBe(false);
+
+    widget.destroy();
+  });
+
+  it('scrolls window to container top instead of panel scrollTo when stickyMap is on', () => {
+    const { ListingsMap, window } = createEnvironment();
+    const container = window.document.querySelector('#widget');
+    const widget = ListingsMap.init({
+      container,
+      listings: buildManyListings(20),
+      pageSize: 0,
+      stickyMap: true,
+    });
+
+    let windowScrollTarget = null;
+    window.scrollTo = ({ top }) => {
+      windowScrollTarget = top;
+    };
+
+    widget._scrollToListingsTop();
+    expect(windowScrollTarget).not.toBeNull();
+
+    widget.destroy();
+  });
+
   it('defaults to grid view mode and exposes icon-only view toggles', () => {
     const { ListingsMap, window } = createEnvironment();
     const container = window.document.querySelector('#widget');
@@ -950,5 +1015,30 @@ describe('bp-listings UMD runtime', () => {
     widget.destroy();
 
     expect(container.innerHTML).toBe('');
+  });
+
+  it('shows and uses back-to-top button while scrolling listings', () => {
+    const { ListingsMap, window } = createEnvironment();
+    const container = window.document.querySelector('#widget');
+    const widget = ListingsMap.init({
+      container,
+      listings: buildManyListings(20),
+      pageSize: 0,
+    });
+
+    expect(widget.backToTopBtn).not.toBeNull();
+    expect(widget.backToTopBtn.classList.contains('lm-back-to-top-visible')).toBe(false);
+
+    widget.listingsPanel.scrollTop = 240;
+    widget.listingsPanel.dispatchEvent(new window.Event('scroll'));
+    expect(widget.backToTopBtn.classList.contains('lm-back-to-top-visible')).toBe(true);
+
+    let scrolledToTop = false;
+    widget.listingsPanel.scrollTo = ({ top }) => {
+      scrolledToTop = top === 0;
+    };
+
+    widget.backToTopBtn.dispatchEvent(new window.Event('click'));
+    expect(scrolledToTop).toBe(true);
   });
 });

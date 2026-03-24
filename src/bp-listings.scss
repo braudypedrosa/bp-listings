@@ -42,9 +42,29 @@
     font: inherit;
   }
 
-  .lm-listings-panel {
+  .lm-listings-panel-shell {
     flex: 0 0 50%;
     max-width: 50%;
+    min-width: 0;
+    height: 100%;
+    position: relative;
+    z-index: 10;
+  }
+
+  /**
+   * The flex row splits shell (50%) + map (flex-grow). The scrollable panel lives
+   * *inside* the shell — it must span the full shell width. Older bp-listings
+   * CSS (or theme overrides) sometimes set flex/max-width on `.lm-listings-panel`
+   * itself; that halves the panel inside the shell and creates a large empty band
+   * between cards and the map. Force full width here (higher specificity).
+   */
+  .lm-listings-panel-shell .lm-listings-panel {
+    width: 100%;
+    max-width: none;
+    flex: none;
+  }
+
+  .lm-listings-panel {
     min-width: 0;
     height: 100%;
     overflow-y: auto;
@@ -52,11 +72,17 @@
     scrollbar-width: none;
     -ms-overflow-style: none;
     position: relative;
-    z-index: 10;
 
     &::-webkit-scrollbar {
       display: none;
     }
+  }
+
+  .lm-sticky-controls {
+    position: relative;
+    z-index: 20;
+    background: var(--lm-color-bg);
+    padding: 0;
   }
 
   .lm-listings-grid {
@@ -72,7 +98,8 @@
   }
 
   .lm-map-panel {
-    flex: 1;
+    flex: 1 1 0%;
+    min-width: 0;
     height: 100%;
     position: relative;
     z-index: 1;
@@ -89,12 +116,49 @@
     margin-bottom: 16px;
     position: relative;
     z-index: 20;
+    padding: 0;
 
     .bp-search-widget-host {
       width: 100%;
       position: relative;
       z-index: 30;
     }
+  }
+
+  .lm-back-to-top {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    z-index: 60;
+    appearance: none;
+    border: 1px solid var(--lm-color-border);
+    border-radius: 999px;
+    background: var(--lm-color-text);
+    color: var(--lm-color-bg);
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(8px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+
+    svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      fill: none;
+    }
+  }
+
+  .lm-back-to-top-visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
   }
 
   .lm-toolbar {
@@ -226,6 +290,10 @@
   }
 
   &.lm-map-hidden .lm-listings-panel {
+    height: 100%;
+  }
+
+  &.lm-map-hidden .lm-listings-panel-shell {
     flex: 1 1 0%;
     max-width: 100%;
   }
@@ -923,10 +991,16 @@
   overflow: visible;
 }
 
+.lm-widget.lm-map-sticky .lm-listings-panel-shell {
+  height: auto;
+}
+
 .lm-widget.lm-map-sticky .lm-map-panel {
   position: sticky;
   top: 0;
   align-self: flex-start;
+  flex: 1 1 0%;
+  min-width: 0;
   height: 100vh;
   height: 100dvh;
 }
@@ -934,6 +1008,11 @@
 .lm-widget.lm-map-sticky .lm-map-panel .lm-map-container {
   height: 100%;
   min-height: 100%;
+}
+
+.lm-widget.lm-map-sticky .lm-back-to-top {
+  position: fixed;
+  bottom: 16px;
 }
 
 @supports not (aspect-ratio: 1 / 1) {
@@ -952,10 +1031,14 @@
   .lm-widget {
     flex-direction: column;
 
-    .lm-listings-panel {
+    .lm-listings-panel-shell {
       flex: 0 0 auto;
       max-width: 100%;
       width: 100%;
+      height: auto;
+    }
+
+    .lm-listings-panel {
       height: auto;
       max-height: 55vh;
       overflow-y: auto;
@@ -990,6 +1073,10 @@
     overflow-y: auto;
   }
 
+  .lm-widget.lm-map-sticky .lm-listings-panel-shell {
+    height: auto;
+  }
+
   .lm-widget.lm-map-sticky .lm-map-panel {
     position: relative;
     top: auto;
@@ -999,6 +1086,10 @@
 
 @media (max-width: 640px) {
   .lm-widget {
+    .lm-listings-panel-shell {
+      height: auto;
+    }
+
     .lm-listings-panel {
       padding: 16px;
       max-height: 50vh;
@@ -1009,6 +1100,15 @@
       margin-bottom: 2px;
       flex-wrap: wrap;
       gap: 8px;
+    }
+
+    .lm-sticky-controls {
+      padding: 0;
+    }
+
+    .lm-back-to-top {
+      right: 10px;
+      bottom: 10px;
     }
 
     .lm-sort-select {

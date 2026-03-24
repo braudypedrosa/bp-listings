@@ -56,6 +56,8 @@ import './bp-listings.scss';
       '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5"/><rect x="9" y="2" width="5" height="5"/><rect x="2" y="9" width="5" height="5"/><rect x="9" y="9" width="5" height="5"/></svg>',
     list:
       '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="4" x2="13" y2="4"/><line x1="3" y1="8" x2="13" y2="8"/><line x1="3" y1="12" x2="13" y2="12"/></svg>',
+    chevronUp:
+      '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 10 8 5 13 10"/></svg>',
     chevronDown:
       '<svg viewBox="0 0 16 16"><polyline points="3 6 8 11 13 6"/></svg>',
     trophy: "&#127942;",
@@ -620,6 +622,7 @@ import './bp-listings.scss';
     self._searchSlotCleanup = null;
     self._isDestroyed = false;
     self._nativeSortChangeHandler = null;
+    self._listingsScrollHandler = null;
     self._windowResizeHandler = null;
     self._infiniteScrollObserver = null;
     self._infiniteScrollSentinel = null;
@@ -656,14 +659,18 @@ import './bp-listings.scss';
     self._syncViewModeControls();
 
     // Listings panel
+    self.listingsPanelShell = el("div", "lm-listings-panel-shell");
     self.listingsPanel = el("div", "lm-listings-panel");
+    self.listingsPanelShell.appendChild(self.listingsPanel);
+    self.stickyControls = el("div", "lm-sticky-controls");
+    self.listingsPanel.appendChild(self.stickyControls);
 
     // Toolbar
     if (self.config.showMapToggle || self.config.showSort) {
       self._renderToolbar();
     }
 
-    container.appendChild(self.listingsPanel);
+    container.appendChild(self.listingsPanelShell);
 
     self.listingsGrid = el("div", "lm-listings-grid");
     self.paginationContainer = el("div", "lm-pagination");
@@ -671,7 +678,7 @@ import './bp-listings.scss';
     // Search slot: let consumer render their own search UI
     if (self.config.renderSearchSlot) {
       self._searchSlot = el("div", "lm-search-slot");
-      self.listingsPanel.appendChild(self._searchSlot);
+      self.stickyControls.appendChild(self._searchSlot);
       var cleanup = self.config.renderSearchSlot(self._searchSlot, self);
       if (typeof cleanup === "function") {
         self._searchSlotCleanup = cleanup;
@@ -684,8 +691,26 @@ import './bp-listings.scss';
     });
     self.listingsPanel.appendChild(self._infiniteScrollSentinel);
     self.listingsPanel.appendChild(self.paginationContainer);
+    self.backToTopBtn = el("button", "lm-back-to-top", {
+      type: "button",
+      "aria-label": "Back to top",
+      html: ICONS.chevronUp,
+    });
+    self.backToTopBtn.addEventListener("click", function () {
+      self._scrollToListingsTop();
+    });
+    self.listingsPanelShell.appendChild(self.backToTopBtn);
+    self._listingsScrollHandler = function () {
+      self._updateBackToTopVisibility();
+    };
+    self._scrollListenerTarget = self._stickyMap ? window : self.listingsPanel;
+    self._scrollListenerTarget.addEventListener("scroll", self._listingsScrollHandler);
+    self._updateBackToTopVisibility();
     self._windowResizeHandler = function () {
       self._updateDynamicGridColumns();
+      if (self._stickyMap) {
+        self._updateBackToTopPosition();
+      }
     };
     window.addEventListener("resize", self._windowResizeHandler);
 
@@ -772,6 +797,38 @@ import './bp-listings.scss';
       "repeat(" + columns + ", minmax(0, 1fr))";
   };
 
+  ListingsMapWidget.prototype._updateBackToTopVisibility = function () {
+    if (!this.backToTopBtn) {
+      return;
+    }
+    var shouldShow;
+    if (this._stickyMap && this.container) {
+      var rect = this.container.getBoundingClientRect();
+      shouldShow = rect.top < -180;
+    } else if (this.listingsPanel) {
+      shouldShow = this.listingsPanel.scrollTop > 180;
+    } else {
+      return;
+    }
+    this.backToTopBtn.classList.toggle("lm-back-to-top-visible", shouldShow);
+    if (this._stickyMap) {
+      this._updateBackToTopPosition();
+    }
+  };
+
+  /**
+   * Reposition the back-to-top button when stickyMap is on so it stays
+   * anchored to the bottom-right of the listings panel (fixed positioning).
+   */
+  ListingsMapWidget.prototype._updateBackToTopPosition = function () {
+    if (!this.backToTopBtn || !this._stickyMap || !this.listingsPanelShell) {
+      return;
+    }
+    var rect = this.listingsPanelShell.getBoundingClientRect();
+    this.backToTopBtn.style.right =
+      window.innerWidth - rect.right + 16 + "px";
+  };
+
   // ==========================================
   // Toolbar: Map Toggle + Sort
   // ==========================================
@@ -824,7 +881,11 @@ import './bp-listings.scss';
     }
 
     self.toolbar.appendChild(right);
-    self.listingsPanel.appendChild(self.toolbar);
+    if (self.stickyControls) {
+      self.stickyControls.appendChild(self.toolbar);
+    } else {
+      self.listingsPanel.appendChild(self.toolbar);
+    }
   };
 
   ListingsMapWidget.prototype._renderViewToggle = function (target) {
@@ -982,6 +1043,7 @@ import './bp-listings.scss';
       return;
     }
 
+    var observerRoot = self._stickyMap ? null : (self.listingsPanel || null);
     self._infiniteScrollObserver = new window.IntersectionObserver(
       function (entries) {
         entries.forEach(function (entry) {
@@ -991,7 +1053,7 @@ import './bp-listings.scss';
         });
       },
       {
-        root: self.listingsPanel || null,
+        root: observerRoot,
         rootMargin: "0px 0px 240px 0px",
         threshold: 0.01,
       }
@@ -1472,7 +1534,13 @@ import './bp-listings.scss';
   };
 
   ListingsMapWidget.prototype._scrollToListingsTop = function () {
-    if (this.listingsPanel) {
+    if (this._stickyMap && this.container) {
+      var rect = this.container.getBoundingClientRect();
+      window.scrollTo({
+        top: window.scrollY + rect.top,
+        behavior: "smooth",
+      });
+    } else if (this.listingsPanel) {
       this.listingsPanel.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
@@ -1680,6 +1748,11 @@ import './bp-listings.scss';
       this.sortSelect.removeEventListener("change", this._nativeSortChangeHandler);
       this._nativeSortChangeHandler = null;
     }
+    if (this._scrollListenerTarget && this._listingsScrollHandler) {
+      this._scrollListenerTarget.removeEventListener("scroll", this._listingsScrollHandler);
+      this._listingsScrollHandler = null;
+      this._scrollListenerTarget = null;
+    }
     if (this._windowResizeHandler) {
       window.removeEventListener("resize", this._windowResizeHandler);
       this._windowResizeHandler = null;
@@ -1690,7 +1763,10 @@ import './bp-listings.scss';
       this.container.classList.remove("lm-widget");
     }
     this._searchSlot = null;
+    this.listingsPanelShell = null;
+    this.stickyControls = null;
     this.sortSelect = null;
+    this.backToTopBtn = null;
     this.gridViewBtn = null;
     this.listViewBtn = null;
     this.viewToggle = null;
@@ -1717,6 +1793,6 @@ import './bp-listings.scss';
     filterListingsBySearchData: filterListingsBySearchData,
 
     /** Version */
-    version: "1.0.0",
+    version: "1.0.3",
   };
 });
