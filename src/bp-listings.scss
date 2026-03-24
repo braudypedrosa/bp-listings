@@ -43,8 +43,8 @@
   }
 
   .lm-listings-panel {
-    flex: 0 0 58%;
-    max-width: 58%;
+    flex: 0 0 50%;
+    max-width: 50%;
     min-width: 0;
     height: 100%;
     overflow-y: auto;
@@ -115,6 +115,44 @@
     display: flex;
     align-items: center;
     gap: 10px;
+  }
+
+  .lm-view-toggle-group {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--lm-color-border);
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--lm-color-bg);
+  }
+
+  .lm-view-toggle-btn {
+    appearance: none;
+    border: none;
+    background: transparent;
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--lm-color-text);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+    }
+  }
+
+  .lm-view-toggle-btn + .lm-view-toggle-btn {
+    border-left: 1px solid var(--lm-color-border);
+  }
+
+  .lm-view-toggle-btn-active {
+    background: var(--lm-color-text);
+    color: var(--lm-color-bg);
   }
 
   .lm-sort-wrapper {
@@ -190,6 +228,58 @@
   &.lm-map-hidden .lm-listings-panel {
     flex: 1 1 0%;
     max-width: 100%;
+  }
+
+  &.lm-view-list .lm-listings-grid {
+    gap: 16px;
+  }
+
+  &.lm-view-list .lm-card {
+    display: flex;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  &.lm-view-list .lm-carousel {
+    flex: 0 0 280px;
+    max-width: 280px;
+    aspect-ratio: 4 / 3;
+  }
+
+  &.lm-view-list .lm-card-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    padding-top: 4px;
+  }
+
+  &.lm-view-list .lm-card-title {
+    font-size: 18px;
+    line-height: 1.35;
+  }
+
+  &.lm-view-list .lm-card-rating {
+    font-size: 15px;
+  }
+
+  &.lm-view-list .lm-card-subtitle,
+  &.lm-view-list .lm-card-details,
+  &.lm-view-list .lm-card-dates {
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  &.lm-view-list .lm-card-price {
+    margin-top: auto;
+    padding-top: 10px;
+    font-size: 16px;
+    line-height: 1.45;
+  }
+
+  &.lm-view-list .lm-card-tag {
+    font-size: 14px;
+    line-height: 1.45;
   }
 
   .lm-pagination {
@@ -822,6 +912,30 @@
   min-height: 100dvh;
 }
 
+.lm-widget.lm-map-sticky {
+  align-items: flex-start;
+  overflow: visible;
+}
+
+.lm-widget.lm-map-sticky .lm-listings-panel {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+.lm-widget.lm-map-sticky .lm-map-panel {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.lm-widget.lm-map-sticky .lm-map-panel .lm-map-container {
+  height: 100%;
+  min-height: 100%;
+}
+
 @supports not (aspect-ratio: 1 / 1) {
   .lm-widget .lm-carousel {
     height: 0;
@@ -865,6 +979,22 @@
     }
 
   }
+
+  .lm-widget.lm-map-sticky {
+    overflow: hidden;
+  }
+
+  .lm-widget.lm-map-sticky .lm-listings-panel {
+    height: auto;
+    max-height: 55vh;
+    overflow-y: auto;
+  }
+
+  .lm-widget.lm-map-sticky .lm-map-panel {
+    position: relative;
+    top: auto;
+    height: auto;
+  }
 }
 
 @media (max-width: 640px) {
@@ -891,8 +1021,36 @@
       padding: 6px 14px;
     }
 
+    .lm-view-toggle-btn {
+      width: 32px;
+      height: 32px;
+    }
+
     .lm-listings-grid {
       gap: 20px;
+    }
+
+    &.lm-view-list .lm-card {
+      display: block;
+    }
+
+    &.lm-view-list .lm-carousel {
+      flex: 0 0 auto;
+      max-width: none;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+    }
+
+    &.lm-view-list .lm-card-title {
+      font-size: 15px;
+    }
+
+    &.lm-view-list .lm-card-subtitle,
+    &.lm-view-list .lm-card-details,
+    &.lm-view-list .lm-card-dates,
+    &.lm-view-list .lm-card-price,
+    &.lm-view-list .lm-card-tag {
+      font-size: 13px;
     }
 
     .lm-map-panel {

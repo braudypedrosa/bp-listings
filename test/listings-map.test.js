@@ -397,6 +397,57 @@ describe('bp-listings UMD runtime', () => {
     expect(container.classList.contains('lm-widget-full-height')).toBe(true);
   });
 
+  it('applies sticky-map class when stickyMap is enabled', () => {
+    const { ListingsMap, window } = createEnvironment();
+    const container = window.document.querySelector('#widget');
+
+    const widget = ListingsMap.init({
+      container,
+      listings: buildManyListings(5),
+      stickyMap: true,
+    });
+
+    expect(widget.config.stickyMap).toBe(true);
+    expect(container.classList.contains('lm-map-sticky')).toBe(true);
+  });
+
+  it('defaults to grid view mode and exposes icon-only view toggles', () => {
+    const { ListingsMap, window } = createEnvironment();
+    const container = window.document.querySelector('#widget');
+    const widget = ListingsMap.init({
+      container,
+      listings: buildManyListings(5),
+    });
+
+    expect(widget.config.viewMode).toBe('grid');
+    expect(container.classList.contains('lm-view-grid')).toBe(true);
+    expect(container.classList.contains('lm-view-list')).toBe(false);
+    expect(widget.gridViewBtn).not.toBeNull();
+    expect(widget.listViewBtn).not.toBeNull();
+    expect(widget.gridViewBtn.getAttribute('aria-pressed')).toBe('true');
+    expect(widget.listViewBtn.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('switches between grid and list mode via API and toggle buttons', () => {
+    const { ListingsMap, window } = createEnvironment();
+    const container = window.document.querySelector('#widget');
+    const widget = ListingsMap.init({
+      container,
+      listings: buildManyListings(7),
+    });
+
+    widget.setViewMode('list');
+    expect(widget.config.viewMode).toBe('list');
+    expect(container.classList.contains('lm-view-list')).toBe(true);
+    expect(widget.listingsGrid.style.gridTemplateColumns).toContain('repeat(1, minmax(0, 1fr))');
+
+    widget.gridViewBtn.dispatchEvent(new window.Event('click', { bubbles: true }));
+    expect(widget.config.viewMode).toBe('grid');
+    expect(container.classList.contains('lm-view-grid')).toBe(true);
+    expect(widget.gridViewBtn.getAttribute('aria-pressed')).toBe('true');
+    expect(widget.listViewBtn.getAttribute('aria-pressed')).toBe('false');
+  });
+
   it('supports infinite pagination mode with pageSize as chunk size', () => {
     const { ListingsMap, window } = createEnvironment();
     const container = window.document.querySelector('#widget');
@@ -642,19 +693,23 @@ describe('bp-listings UMD runtime', () => {
   });
 
   it('brings marker to front and opens popup when hovering a listing card', () => {
-    const { ListingsMap, window } = createEnvironment();
+    const { ListingsMap, window, mapInstances } = createEnvironment();
     const widget = ListingsMap.init({
       container: window.document.querySelector('#widget'),
       listings: buildListings(),
       pageSize: 0,
     });
+    const map = mapInstances[0];
 
     const firstCard = widget.cards[0].el;
     const firstMarker = widget.markers[0];
+    const zoomBeforeHover = map.zoom;
 
     firstCard.dispatchEvent(new window.Event('mouseenter', { bubbles: true }));
     expect(firstMarker.zIndexOffset).toBe(1000);
     expect(firstMarker.popupOpened).toBe(true);
+    expect(map.center).toEqual({ lat: firstMarker.latlng[0], lng: firstMarker.latlng[1] });
+    expect(map.zoom).toBe(zoomBeforeHover);
 
     firstCard.dispatchEvent(new window.Event('mouseleave', { bubbles: true }));
     expect(firstMarker.zIndexOffset).toBe(0);

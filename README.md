@@ -92,6 +92,8 @@ Each listing can include:
 - `showMapToggle: boolean` default `true`
 - `showSort: boolean` default `true`
 - `showPagination: boolean` default `true`
+- `viewMode: 'grid' | 'list'` default `'grid'`
+- `stickyMap: boolean` default `false`
 - `pageSize: number` default `12`
 - `paginationMode: 'pages' | 'infinite'` default `'pages'`
 - `fullHeightMap: boolean` default `false`
@@ -117,6 +119,9 @@ custom container CSS.
 Desktop grid columns are dynamic and clamped using `minDesktopColumns` and
 `maxDesktopColumns`. Lower screens still auto-adjust down based on available width.
 
+When `stickyMap` is `true`, the map panel stays pinned on desktop while the page
+scrolls through listings. On tablet/mobile breakpoints this falls back to normal flow.
+
 When a marker is clicked, the map focuses using a fixed zoom value from
 `markerFocusZoom`. By default it centers on the clicked marker coordinates; set
 `markerFocusCenter` to force a fixed center target.
@@ -128,6 +133,7 @@ The widget returned by `window.ListingsMap.init(...)` exposes:
 - `setListings(listings)`
 - `panToListing(id)`
 - `toggleMap()`
+- `setViewMode(mode)`
 - `goToPage(pageNumber)`
 - `destroy()`
 

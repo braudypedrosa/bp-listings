@@ -52,6 +52,10 @@ import './bp-listings.scss';
       '<svg viewBox="0 0 16 16"><polyline points="4 1 1 1 1 4"/><polyline points="12 1 15 1 15 4"/><polyline points="4 15 1 15 1 12"/><polyline points="12 15 15 15 15 12"/></svg>',
     mapPin:
       '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 14s-5-4.58-5-7.5a5 5 0 0 1 10 0C13 9.42 8 14 8 14z"/><circle cx="8" cy="6.5" r="1.5"/></svg>',
+    grid:
+      '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5"/><rect x="9" y="2" width="5" height="5"/><rect x="2" y="9" width="5" height="5"/><rect x="9" y="9" width="5" height="5"/></svg>',
+    list:
+      '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="4" x2="13" y2="4"/><line x1="3" y1="8" x2="13" y2="8"/><line x1="3" y1="12" x2="13" y2="12"/></svg>',
     chevronDown:
       '<svg viewBox="0 0 16 16"><polyline points="3 6 8 11 13 6"/></svg>',
     trophy: "&#127942;",
@@ -579,6 +583,8 @@ import './bp-listings.scss';
         showMapToggle: true,
         showSort: true,
         showPagination: true,
+        viewMode: "grid", // "grid" | "list"
+        stickyMap: false, // true keeps map pinned while page scrolls
         pageSize: 12, // explicit values <= 0 disable pagination
         paginationMode: "pages", // "pages" | "infinite"
         fullHeightMap: false, // true makes widget fill viewport height
@@ -598,6 +604,10 @@ import './bp-listings.scss';
     self.activeListingId = null;
     self.map = null;
     self._mapVisible = true;
+    self._viewMode = self._resolveViewMode(self.config.viewMode);
+    self.config.viewMode = self._viewMode;
+    self._stickyMap = Boolean(self.config.stickyMap);
+    self.config.stickyMap = self._stickyMap;
     self._sortOrder = "default";
     self._currentPage = 1;
     self._paginationMode = self._resolvePaginationMode(self.config.paginationMode);
@@ -640,6 +650,10 @@ import './bp-listings.scss';
     if (self._fullHeightMap) {
       container.classList.add("lm-widget-full-height");
     }
+    if (self._stickyMap) {
+      container.classList.add("lm-map-sticky");
+    }
+    self._syncViewModeControls();
 
     // Listings panel
     self.listingsPanel = el("div", "lm-listings-panel");
@@ -749,6 +763,10 @@ import './bp-listings.scss';
     if (!this.listingsGrid) {
       return;
     }
+    if (this._viewMode === "list") {
+      this.listingsGrid.style.gridTemplateColumns = "repeat(1, minmax(0, 1fr))";
+      return;
+    }
     var columns = this._getTargetGridColumns();
     this.listingsGrid.style.gridTemplateColumns =
       "repeat(" + columns + ", minmax(0, 1fr))";
@@ -789,8 +807,9 @@ import './bp-listings.scss';
 
     self.toolbar.appendChild(left);
 
-    // Right side: map toggle
+    // Right side: view toggle + map toggle
     var right = el("div", "lm-toolbar-right");
+    self._renderViewToggle(right);
 
     if (self.config.showMapToggle) {
       self.mapToggleBtn = el("button", "lm-toggle-map-btn", {
@@ -806,6 +825,36 @@ import './bp-listings.scss';
 
     self.toolbar.appendChild(right);
     self.listingsPanel.appendChild(self.toolbar);
+  };
+
+  ListingsMapWidget.prototype._renderViewToggle = function (target) {
+    var self = this;
+    self.viewToggle = el("div", "lm-view-toggle-group", {
+      role: "group",
+      "aria-label": "Listing view mode",
+    });
+    self.gridViewBtn = el("button", "lm-view-toggle-btn", {
+      html: ICONS.grid,
+      "aria-label": "Grid view",
+      type: "button",
+    });
+    self.listViewBtn = el("button", "lm-view-toggle-btn", {
+      html: ICONS.list,
+      "aria-label": "List view",
+      type: "button",
+    });
+
+    self.gridViewBtn.addEventListener("click", function () {
+      self.setViewMode("grid");
+    });
+    self.listViewBtn.addEventListener("click", function () {
+      self.setViewMode("list");
+    });
+
+    self.viewToggle.appendChild(self.gridViewBtn);
+    self.viewToggle.appendChild(self.listViewBtn);
+    target.appendChild(self.viewToggle);
+    self._syncViewModeControls();
   };
 
   ListingsMapWidget.prototype._updateToggleLabel = function () {
@@ -855,6 +904,31 @@ import './bp-listings.scss';
   // ==========================================
   ListingsMapWidget.prototype._resolvePaginationMode = function (value) {
     return value === "infinite" ? "infinite" : "pages";
+  };
+
+  ListingsMapWidget.prototype._resolveViewMode = function (value) {
+    return value === "list" ? "list" : "grid";
+  };
+
+  ListingsMapWidget.prototype._syncViewModeControls = function () {
+    if (!this.container) {
+      return;
+    }
+
+    this.container.classList.toggle("lm-view-list", this._viewMode === "list");
+    this.container.classList.toggle("lm-view-grid", this._viewMode !== "list");
+
+    if (this.gridViewBtn) {
+      var gridActive = this._viewMode === "grid";
+      this.gridViewBtn.classList.toggle("lm-view-toggle-btn-active", gridActive);
+      this.gridViewBtn.setAttribute("aria-pressed", gridActive ? "true" : "false");
+    }
+
+    if (this.listViewBtn) {
+      var listActive = this._viewMode === "list";
+      this.listViewBtn.classList.toggle("lm-view-toggle-btn-active", listActive);
+      this.listViewBtn.setAttribute("aria-pressed", listActive ? "true" : "false");
+    }
   };
 
   ListingsMapWidget.prototype._isInfinitePaginationMode = function () {
@@ -1303,6 +1377,19 @@ import './bp-listings.scss';
     this._highlightListing(listingId);
   };
 
+  ListingsMapWidget.prototype._centerMapToMarker = function (marker) {
+    var self = this;
+    if (!self.map || !marker || typeof marker.getLatLng !== "function") {
+      return;
+    }
+
+    var zoom = typeof self.map.getZoom === "function"
+      ? self.map.getZoom()
+      : self.config.mapOptions.zoom;
+
+    self.map.setView(marker.getLatLng(), zoom, { animate: true });
+  };
+
   ListingsMapWidget.prototype._resetMarkerHoverState = function (marker) {
     if (!marker) {
       return;
@@ -1318,6 +1405,7 @@ import './bp-listings.scss';
     this.markers.forEach(function (m) {
       if (m._listingId === id) {
         self._focusMarkerOnHover(m, id);
+        self._centerMapToMarker(m);
         var el = m.getElement();
         if (el) {
           var pill = el.querySelector(".lm-price-marker");
@@ -1544,6 +1632,21 @@ import './bp-listings.scss';
   };
 
   /**
+   * Switch listing presentation mode
+   */
+  ListingsMapWidget.prototype.setViewMode = function (mode) {
+    var nextMode = this._resolveViewMode(mode);
+    if (nextMode === this._viewMode) {
+      return;
+    }
+
+    this._viewMode = nextMode;
+    this.config.viewMode = nextMode;
+    this._syncViewModeControls();
+    this._updateDynamicGridColumns();
+  };
+
+  /**
    * Go to a specific page
    */
   ListingsMapWidget.prototype.goToPage = function (n) {
@@ -1588,6 +1691,9 @@ import './bp-listings.scss';
     }
     this._searchSlot = null;
     this.sortSelect = null;
+    this.gridViewBtn = null;
+    this.listViewBtn = null;
+    this.viewToggle = null;
     this._infiniteScrollSentinel = null;
   };
 
