@@ -94,6 +94,60 @@
         transform: scale(0.98);
       }
 
+      .demo-controls-toolbar {
+        display: inline-flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px 14px;
+      }
+
+      .demo-control-label {
+        font-size: 14px;
+        color: #525252;
+        margin: 0;
+        white-space: nowrap;
+      }
+
+      .demo-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0;
+        padding: 9px 16px;
+        border-radius: 999px;
+        border: 1px solid #d4d4d4;
+        background: #ffffff;
+        color: #111111;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        user-select: none;
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+      }
+
+      .demo-toggle:hover {
+        border-color: #a3a3a3;
+      }
+
+      .demo-toggle:has(input:focus-visible) {
+        outline: 2px solid #111111;
+        outline-offset: 2px;
+      }
+
+      .demo-toggle input {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+        pointer-events: none;
+      }
+
+      .demo-toggle--on {
+        background: #111111;
+        color: #ffffff;
+        border-color: #111111;
+      }
+
       #widget-demo {
         width: 100%;
         height: min(78vh, 860px);
@@ -103,6 +157,24 @@
         overflow: hidden;
         background: #ffffff;
         box-shadow: 0 24px 60px -42px rgba(0, 0, 0, 0.42);
+      }
+
+      /**
+       * Full-height map: give the mount enough vertical room so lm-widget-full-height
+       * (100vh inside the widget) reads clearly in the demo frame.
+       */
+      #widget-demo.demo-widget--full-height {
+        height: min(92vh, 960px);
+        min-height: min(92vh, 960px);
+      }
+
+      /**
+       * Sticky map: let the page scroll past a tall widget so position:sticky on the
+       * map column is observable (parent overflow must not clip sticky descendants).
+       */
+      #widget-demo.demo-widget--sticky {
+        overflow: visible;
+        min-height: min(140vh, 1400px);
       }
 
       .demo-log {
@@ -160,13 +232,27 @@
       <div class="demo-actions">
         <p class="demo-note">
           Uses exactly 30 demo listings so you can validate infinite-scroll behavior with real pagination depth.
+          Use <strong>Layout</strong> toggles to compare <code>fullHeightMap</code> and <code>stickyMap</code> (scroll the page when sticky is on).
         </p>
-        <div style="display: inline-flex; gap: 8px; align-items: center;">
-          <label for="pagination-mode" style="font-size: 14px; color: #525252;">Pagination:</label>
-          <select id="pagination-mode" class="demo-action-btn" style="background: #fff; color: #111; border-color: #d4d4d4;">
-            <option value="pages">Pages</option>
-            <option value="infinite" selected>Infinite scroll</option>
-          </select>
+        <div class="demo-controls-toolbar" role="group" aria-label="Demo options">
+          <div style="display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <label class="demo-control-label" for="pagination-mode">Pagination:</label>
+            <select id="pagination-mode" class="demo-action-btn" style="background: #fff; color: #111; border-color: #d4d4d4;">
+              <option value="pages">Pages</option>
+              <option value="infinite" selected>Infinite scroll</option>
+            </select>
+          </div>
+          <div style="display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <span class="demo-control-label">Layout:</span>
+            <label class="demo-toggle demo-toggle--on" id="label-toggle-full-height" for="toggle-full-height">
+              <input type="checkbox" id="toggle-full-height" checked />
+              Full height map
+            </label>
+            <label class="demo-toggle" id="label-toggle-sticky-map" for="toggle-sticky-map">
+              <input type="checkbox" id="toggle-sticky-map" />
+              Sticky map
+            </label>
+          </div>
           <button id="reset-listings" class="demo-action-btn" type="button">Reset listings</button>
         </div>
       </div>
@@ -187,7 +273,25 @@
       const output = document.querySelector('#demo-output');
       const resetButton = document.querySelector('#reset-listings');
       const paginationModeSelect = document.querySelector('#pagination-mode');
+      const widgetDemoEl = document.querySelector('#widget-demo');
+      const toggleFullHeight = document.querySelector('#toggle-full-height');
+      const toggleStickyMap = document.querySelector('#toggle-sticky-map');
+      const labelFullHeight = document.querySelector('#label-toggle-full-height');
+      const labelStickyMap = document.querySelector('#label-toggle-sticky-map');
       const { BPSearchWidget } = window;
+
+      /**
+       * Sync pill appearance with checkbox state (visual “on” = black pill).
+       *
+       * @param {HTMLInputElement} input
+       * @param {HTMLLabelElement} label
+       */
+      const syncTogglePill = (input, label) => {
+        label.classList.toggle('demo-toggle--on', Boolean(input?.checked));
+      };
+
+      syncTogglePill(toggleFullHeight, labelFullHeight);
+      syncTogglePill(toggleStickyMap, labelStickyMap);
 
       const writeOutput = (label, payload) => {
         output.textContent = `${label}\n${JSON.stringify(payload, null, 2)}`;
@@ -396,16 +500,44 @@
 
       let widget = null;
 
+      /**
+       * Read layout toggles from the demo toolbar.
+       *
+       * @returns {{ fullHeightMap: boolean, stickyMap: boolean }}
+       */
+      const getLayoutOptions = () => ({
+        fullHeightMap: Boolean(toggleFullHeight?.checked),
+        stickyMap: Boolean(toggleStickyMap?.checked),
+      });
+
+      /**
+       * Apply CSS hooks on the mount node so full-height / sticky modes are visible.
+       *
+       * @param {{ fullHeightMap: boolean, stickyMap: boolean }} layout
+       */
+      const applyDemoLayoutClasses = (layout) => {
+        if (!(widgetDemoEl instanceof HTMLElement)) {
+          return;
+        }
+
+        widgetDemoEl.classList.toggle('demo-widget--full-height', layout.fullHeightMap);
+        widgetDemoEl.classList.toggle('demo-widget--sticky', layout.stickyMap);
+      };
+
       const mountWidget = (paginationMode) => {
         if (widget) {
           widget.destroy();
         }
 
+        const layout = getLayoutOptions();
+        applyDemoLayoutClasses(layout);
+
         widget = window.ListingsMap.init({
           container: '#widget-demo',
           currency: '₱',
           mapOptions: { center: [14.33, 121.0], zoom: 9 },
-          fullHeightMap: true,
+          fullHeightMap: layout.fullHeightMap,
+          stickyMap: layout.stickyMap,
           listings: allListings,
           pageSize: 9,
           paginationMode,
@@ -460,8 +592,22 @@
         writeOutput('mode-change', {
           paginationMode: nextMode,
           pageSize: 9,
+          ...getLayoutOptions(),
         });
       });
+
+      const remountForLayoutChange = () => {
+        syncTogglePill(toggleFullHeight, labelFullHeight);
+        syncTogglePill(toggleStickyMap, labelStickyMap);
+        mountWidget(paginationModeSelect.value);
+        writeOutput('layout-change', {
+          paginationMode: paginationModeSelect.value === 'infinite' ? 'infinite' : 'pages',
+          ...getLayoutOptions(),
+        });
+      };
+
+      toggleFullHeight.addEventListener('change', remountForLayoutChange);
+      toggleStickyMap.addEventListener('change', remountForLayoutChange);
 
       resetButton.addEventListener('click', () => {
         widget.setListings(allListings);

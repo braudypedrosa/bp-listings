@@ -122,6 +122,11 @@ Desktop grid columns are dynamic and clamped using `minDesktopColumns` and
 When `stickyMap` is `true`, the map panel stays pinned on desktop while the page
 scrolls through listings. On tablet/mobile breakpoints this falls back to normal flow.
 
+With `stickyMap` enabled, the widget root uses `height: auto` (even when
+`fullHeightMap` is `true`) so the layout can grow with listing content. A fixed
+viewport height on the root would trap the flex row and produce a large blank
+band between grid rows while the map looked “cut off”.
+
 When a marker is clicked, the map focuses using a fixed zoom value from
 `markerFocusZoom`. By default it centers on the clicked marker coordinates; set
 `markerFocusCenter` to force a fixed center target.

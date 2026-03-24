@@ -656,6 +656,7 @@ import './bp-listings.scss';
     if (self._stickyMap) {
       container.classList.add("lm-map-sticky");
     }
+    self._applyContainerLayoutMode();
     self._syncViewModeControls();
 
     // Listings panel
@@ -990,6 +991,71 @@ import './bp-listings.scss';
       this.listViewBtn.classList.toggle("lm-view-toggle-btn-active", listActive);
       this.listViewBtn.setAttribute("aria-pressed", listActive ? "true" : "false");
     }
+  };
+
+  ListingsMapWidget.prototype._applyContainerLayoutMode = function () {
+    if (!this.container) {
+      return;
+    }
+
+    var style = this.container.style;
+
+    if (!this._containerLayoutStyleSnapshot) {
+      this._containerLayoutStyleSnapshot = {
+        height: style.getPropertyValue("height"),
+        heightPriority: style.getPropertyPriority("height"),
+        minHeight: style.getPropertyValue("min-height"),
+        minHeightPriority: style.getPropertyPriority("min-height"),
+      };
+    }
+
+    if (this._stickyMap) {
+      style.setProperty("height", "auto", "important");
+      style.setProperty("min-height", "0px", "important");
+      return;
+    }
+
+    if (this._fullHeightMap) {
+      style.setProperty("height", "100dvh", "important");
+      style.setProperty("min-height", "100dvh", "important");
+      return;
+    }
+
+    style.removeProperty("height");
+    style.removeProperty("min-height");
+  };
+
+  ListingsMapWidget.prototype._restoreContainerLayoutMode = function () {
+    if (!this.container) {
+      return;
+    }
+
+    var snapshot = this._containerLayoutStyleSnapshot;
+    var style = this.container.style;
+
+    if (!snapshot) {
+      style.removeProperty("height");
+      style.removeProperty("min-height");
+      return;
+    }
+
+    if (snapshot.height) {
+      style.setProperty("height", snapshot.height, snapshot.heightPriority || "");
+    } else {
+      style.removeProperty("height");
+    }
+
+    if (snapshot.minHeight) {
+      style.setProperty(
+        "min-height",
+        snapshot.minHeight,
+        snapshot.minHeightPriority || ""
+      );
+    } else {
+      style.removeProperty("min-height");
+    }
+
+    this._containerLayoutStyleSnapshot = null;
   };
 
   ListingsMapWidget.prototype._isInfinitePaginationMode = function () {
@@ -1759,6 +1825,7 @@ import './bp-listings.scss';
     }
     this._teardownInfiniteScrollObserver();
     if (this.container) {
+      this._restoreContainerLayoutMode();
       this.container.innerHTML = "";
       this.container.classList.remove("lm-widget");
     }
